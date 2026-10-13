@@ -1,0 +1,1 @@
+export { outputService } from './versionService';

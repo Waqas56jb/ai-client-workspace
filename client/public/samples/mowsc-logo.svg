@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+  <rect width="320" height="320" rx="64" fill="#0B3D91"/>
+  <path d="M40 210c30-22 60-22 90 0s60 22 90 0 40-22 60-8" fill="none" stroke="#1FB6C9" stroke-width="14" stroke-linecap="round"/>
+  <path d="M160 60 L160 180 L100 180 Z" fill="#FFFFFF"/>
+  <path d="M168 80 L168 180 L220 180 Z" fill="#FFC531"/>
+  <text x="160" y="268" font-family="Montserrat, Arial, sans-serif" font-size="44" font-weight="800" fill="#FFFFFF" text-anchor="middle" letter-spacing="4">MOWSC</text>
+</svg>

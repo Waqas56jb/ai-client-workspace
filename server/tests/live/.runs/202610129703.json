@@ -1,0 +1,28 @@
+{
+  "runId": "202610129703",
+  "records": [
+    {
+      "kind": "client",
+      "id": "00ea038a-c49e-441c-bfab-59abe3a235ed",
+      "at": "2026-10-12T23:36:29.597Z",
+      "name": "QA_202610129703_Crud Alpha"
+    },
+    {
+      "kind": "client",
+      "id": "c7a848b2-a962-4b31-a86f-e8cd52a6b343",
+      "at": "2026-10-12T23:36:32.724Z",
+      "name": "QA_202610129703_Crud Beta"
+    },
+    {
+      "kind": "client",
+      "id": "ed43ccf0-f090-4581-9855-f24287cf2833",
+      "at": "2026-10-12T23:36:35.120Z"
+    },
+    {
+      "kind": "client",
+      "id": "8a834081-092d-4e87-a1ee-5d7af10da54f",
+      "at": "2026-10-12T23:36:39.164Z"
+    }
+  ],
+  "openaiCalls": []
+}

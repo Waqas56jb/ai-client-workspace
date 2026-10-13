@@ -1,0 +1,17 @@
+export { apiClient, ServiceError } from './apiClient';
+export { authService } from './authService';
+export { userService } from './userService';
+export { clientService } from './clientService';
+export { jobService } from './jobService';
+export { taskService } from './taskService';
+export { conversationService } from './conversationService';
+export { aiService } from './aiService';
+export { detectFormat } from '@/lib/promptHeuristics';
+export { outputService, versionService, approvalService, versionText } from './versionService';
+export { fileService, validateUpload } from './fileService';
+export { presetService } from './presetService';
+export { instructionService } from './instructionService';
+export { searchService, SEARCH_GROUPS } from './searchService';
+export { activityService } from './activityService';
+export { settingsService } from './settingsService';
+export { dashboardService } from './dashboardService';

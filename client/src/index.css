@@ -1,0 +1,122 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Manrope', 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  --color-canvas: #f7f8fc;
+  --color-surface: #ffffff;
+  --color-ink: #17182b;
+  --color-muted: #71748a;
+  --color-subtle: #9a9cb2;
+  --color-line: #e8e9f2;
+  --color-line-strong: #d9dbe8;
+
+  --color-brand: #6257e8;
+  --color-brand-hover: #5145d0;
+  --color-brand-soft: #f0eeff;
+  --color-brand-accent: #8b7cff;
+
+  --color-success: #16865c;
+  --color-success-soft: #e8f7ef;
+  --color-warning: #b7791f;
+  --color-warning-soft: #fff5df;
+  --color-danger: #d64545;
+  --color-danger-soft: #fdecec;
+  --color-info: #2f6fdb;
+  --color-info-soft: #eaf1fd;
+
+  --color-sidebar: #17172a;
+  --color-sidebar-muted: #a5a6c0;
+  --color-sidebar-active: #302d50;
+  --color-sidebar-hover: #222139;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 14px;
+
+  --shadow-card: 0 1px 2px rgba(23, 24, 43, 0.04), 0 1px 1px rgba(23, 24, 43, 0.02);
+  --shadow-pop: 0 12px 32px -8px rgba(23, 24, 43, 0.18), 0 2px 6px rgba(23, 24, 43, 0.06);
+  --shadow-glow: 0 6px 20px -6px rgba(98, 87, 232, 0.55);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-canvas text-ink font-sans text-sm;
+    font-feature-settings: 'cv11', 'ss01';
+    overflow-x: hidden;
+  }
+  h1, h2, h3, h4 {
+    @apply text-ink;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: #dcd8ff;
+  }
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface border border-line rounded-xl shadow-card;
+  }
+  .focus-ring {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-1;
+  }
+  .ai-gradient {
+    background-image: linear-gradient(135deg, #6257e8 0%, #8b7cff 55%, #a78bfa 100%);
+  }
+  .ai-gradient-text {
+    background-image: linear-gradient(135deg, #6257e8 0%, #8b7cff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .checkerboard {
+    background-color: #fff;
+    background-image:
+      linear-gradient(45deg, #eceef5 25%, transparent 25%),
+      linear-gradient(-45deg, #eceef5 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #eceef5 75%),
+      linear-gradient(-45deg, transparent 75%, #eceef5 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #d9dbe8 transparent;
+  }
+  .sidebar-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #302d50 transparent;
+  }
+  .prose-output {
+    @apply text-[14px] leading-6 text-ink whitespace-pre-wrap break-words;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+@keyframes pulse-dot {
+  0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); }
+  40% { opacity: 1; transform: scale(1); }
+}
+.typing-dot {
+  animation: pulse-dot 1.2s infinite ease-in-out;
+}

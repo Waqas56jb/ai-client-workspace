@@ -1,0 +1,41 @@
+{
+  "runId": "20261012edb9",
+  "records": [
+    {
+      "kind": "client",
+      "id": "2cd80dc9-e3b5-4483-8daa-f471d340f4e6",
+      "at": "2026-10-12T23:54:28.995Z",
+      "name": "QA_20261012edb9_Config"
+    },
+    {
+      "kind": "preset",
+      "id": "07958bbf-e183-4689-9d42-b65d78479231",
+      "at": "2026-10-12T23:54:34.541Z"
+    },
+    {
+      "kind": "preset",
+      "id": "3957e4e4-371e-48ed-bb21-cb5dc60df533",
+      "at": "2026-10-12T23:54:41.480Z"
+    },
+    {
+      "kind": "client",
+      "id": "f5fb0981-617d-48db-b23f-4a274ef06531",
+      "at": "2026-10-12T23:55:29.383Z",
+      "name": "QA_20261012edb9_Searchable Ünïque Lighthouse"
+    },
+    {
+      "kind": "job",
+      "id": "9ac8f50c-d36f-42cc-9fc3-74b41ce8cc2b",
+      "at": "2026-10-12T23:55:31.576Z",
+      "clientId": "f5fb0981-617d-48db-b23f-4a274ef06531"
+    },
+    {
+      "kind": "task",
+      "id": "4f230d78-4d07-4cee-b53e-f971978a6720",
+      "at": "2026-10-12T23:55:34.253Z",
+      "clientId": "f5fb0981-617d-48db-b23f-4a274ef06531",
+      "jobId": "9ac8f50c-d36f-42cc-9fc3-74b41ce8cc2b"
+    }
+  ],
+  "openaiCalls": []
+}

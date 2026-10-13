@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9EDCF2"/><stop offset="1" stop-color="#E8F7FC"/></linearGradient>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1FB6C9"/><stop offset="1" stop-color="#0B3D91"/></linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#sky)"/>
+  <circle cx="980" cy="150" r="70" fill="#FFE08A"/>
+  <rect y="430" width="1200" height="370" fill="url(#sea)"/>
+  <g fill="#FFFFFF" opacity="0.5">
+    <rect x="80" y="520" width="160" height="6" rx="3"/><rect x="420" y="600" width="220" height="6" rx="3"/><rect x="820" y="540" width="180" height="6" rx="3"/><rect x="260" y="700" width="200" height="6" rx="3"/>
+  </g>
+  <g>
+    <path d="M300 430 L300 230 L210 420 Z" fill="#FFFFFF"/><path d="M308 250 L308 430 L380 430 Z" fill="#FFC531"/><path d="M200 440 L400 440 L370 470 L230 470 Z" fill="#0B3D91"/>
+    <path d="M620 420 L620 200 L520 410 Z" fill="#FFFFFF"/><path d="M628 220 L628 420 L710 420 Z" fill="#1FB6C9"/><path d="M510 430 L730 430 L700 462 L540 462 Z" fill="#17182B"/>
+    <path d="M900 440 L900 270 L830 430 Z" fill="#FFFFFF"/><path d="M906 290 L906 440 L960 440 Z" fill="#E11D48"/><path d="M820 450 L980 450 L955 475 L845 475 Z" fill="#0B3D91"/>
+  </g>
+  <line x1="120" y1="480" x2="1080" y2="480" stroke="#FFC531" stroke-width="4" stroke-dasharray="18 14"/>
+  <text x="60" y="90" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#0B3D91">Reference: Cup 2025 start line (illustration)</text>
+</svg>

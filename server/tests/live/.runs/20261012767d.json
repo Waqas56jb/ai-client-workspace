@@ -1,0 +1,71 @@
+{
+  "runId": "20261012767d",
+  "records": [
+    {
+      "kind": "client",
+      "id": "86b7ac68-c82f-46c0-aaa7-105ef78b4f32",
+      "at": "2026-10-12T23:15:33.992Z",
+      "name": "QA_20261012767d_Crud Alpha"
+    },
+    {
+      "kind": "client",
+      "id": "0eafd5d6-7aa1-472a-89ec-7d7277e0bfa2",
+      "at": "2026-10-12T23:15:37.069Z",
+      "name": "QA_20261012767d_Crud Beta"
+    },
+    {
+      "kind": "client",
+      "id": "8b2d0877-79f4-41e0-af73-35dbb201e354",
+      "at": "2026-10-12T23:15:40.909Z"
+    },
+    {
+      "kind": "client",
+      "id": "ca7fc39e-5eb1-4678-950c-620e3298f63d",
+      "at": "2026-10-12T23:16:03.886Z"
+    },
+    {
+      "kind": "client",
+      "id": "a9eb63aa-b959-4c74-9a9d-728de0b64dca",
+      "at": "2026-10-12T23:16:46.861Z",
+      "name": "QA_20261012767d_Archive Me"
+    },
+    {
+      "kind": "job",
+      "id": "c60dce19-a89f-4b8a-8718-85e8329983de",
+      "at": "2026-10-12T23:17:03.856Z",
+      "clientId": "86b7ac68-c82f-46c0-aaa7-105ef78b4f32"
+    },
+    {
+      "kind": "task",
+      "id": "13ac6d4a-ac71-4425-96bd-01eb25faf385",
+      "at": "2026-10-12T23:17:06.894Z",
+      "clientId": "86b7ac68-c82f-46c0-aaa7-105ef78b4f32",
+      "jobId": "c60dce19-a89f-4b8a-8718-85e8329983de"
+    },
+    {
+      "kind": "job",
+      "id": "8df9c37d-9e36-4556-a63d-7e63569f1e1f",
+      "at": "2026-10-12T23:17:15.388Z"
+    },
+    {
+      "kind": "job",
+      "id": "d6d98203-0b25-4ec1-a073-7507bccac16d",
+      "at": "2026-10-12T23:17:18.215Z",
+      "clientId": "0eafd5d6-7aa1-472a-89ec-7d7277e0bfa2"
+    },
+    {
+      "kind": "job",
+      "id": "07e77189-3871-4192-9ee6-a3e69c59cade",
+      "at": "2026-10-12T23:17:58.186Z",
+      "clientId": "86b7ac68-c82f-46c0-aaa7-105ef78b4f32"
+    },
+    {
+      "kind": "task",
+      "id": "b6f45027-d384-4b29-a5e7-b991410485d3",
+      "at": "2026-10-12T23:18:00.828Z",
+      "clientId": "86b7ac68-c82f-46c0-aaa7-105ef78b4f32",
+      "jobId": "07e77189-3871-4192-9ee6-a3e69c59cade"
+    }
+  ],
+  "openaiCalls": []
+}

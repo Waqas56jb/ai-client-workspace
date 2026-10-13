@@ -1,0 +1,25 @@
+{
+  "runId": "20261012325f",
+  "records": [
+    {
+      "kind": "client",
+      "id": "f1a6bc76-ff68-4434-a52a-1a37dc2301d4",
+      "at": "2026-10-12T23:10:45.545Z",
+      "name": "QA_20261012325f_Probe"
+    },
+    {
+      "kind": "job",
+      "id": "ad2da2a8-c11c-4650-a87a-8a757c62e7cb",
+      "at": "2026-10-12T23:10:47.752Z",
+      "clientId": "f1a6bc76-ff68-4434-a52a-1a37dc2301d4"
+    },
+    {
+      "kind": "task",
+      "id": "ed53f07b-721f-4958-b65b-f4163305b5dd",
+      "at": "2026-10-12T23:10:50.492Z",
+      "clientId": "f1a6bc76-ff68-4434-a52a-1a37dc2301d4",
+      "jobId": "ad2da2a8-c11c-4650-a87a-8a757c62e7cb"
+    }
+  ],
+  "openaiCalls": []
+}

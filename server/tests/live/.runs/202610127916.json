@@ -1,0 +1,66 @@
+{
+  "runId": "202610127916",
+  "records": [
+    {
+      "kind": "client",
+      "id": "4108a20c-a682-4876-a2af-c614a5199a37",
+      "at": "2026-10-12T23:39:54.038Z",
+      "name": "QA_202610127916_Files A"
+    },
+    {
+      "kind": "client",
+      "id": "e7ae2029-4022-41a6-88f8-427d9c6a2738",
+      "at": "2026-10-12T23:39:56.526Z",
+      "name": "QA_202610127916_Files B"
+    },
+    {
+      "kind": "job",
+      "id": "7821d3e0-92fa-49d3-a339-e5a9dcc2af87",
+      "at": "2026-10-12T23:39:58.841Z",
+      "clientId": "4108a20c-a682-4876-a2af-c614a5199a37"
+    },
+    {
+      "kind": "task",
+      "id": "d08934dc-340b-4ea2-82ee-cd6e3ca6f983",
+      "at": "2026-10-12T23:40:01.694Z",
+      "clientId": "4108a20c-a682-4876-a2af-c614a5199a37",
+      "jobId": "7821d3e0-92fa-49d3-a339-e5a9dcc2af87"
+    },
+    {
+      "kind": "file",
+      "id": "3e63191b-45e8-44e1-bc38-91cb5478734a",
+      "at": "2026-10-12T23:40:06.774Z",
+      "clientId": "4108a20c-a682-4876-a2af-c614a5199a37",
+      "name": "QA_202610127916_logo.png"
+    },
+    {
+      "kind": "file",
+      "id": "30b4af75-c0ce-43d0-8f3e-7b5224044aac",
+      "at": "2026-10-12T23:40:21.032Z",
+      "clientId": "4108a20c-a682-4876-a2af-c614a5199a37",
+      "name": "Café menü – ürün.pdf"
+    },
+    {
+      "kind": "file",
+      "id": "83b1a63c-48a2-4b07-947e-f078cc5d26d9",
+      "at": "2026-10-12T23:40:24.366Z",
+      "clientId": "4108a20c-a682-4876-a2af-c614a5199a37",
+      "name": "../../../etc/passwd.txt"
+    },
+    {
+      "kind": "file",
+      "id": "f172dd93-0925-4e91-b608-0a37293159f5",
+      "at": "2026-10-12T23:40:29.908Z",
+      "clientId": "4108a20c-a682-4876-a2af-c614a5199a37",
+      "name": "../../../etc/passwd.txt"
+    },
+    {
+      "kind": "file",
+      "id": "6a0a8f3f-4ef1-423b-a0ba-0132c3c0653b",
+      "at": "2026-10-12T23:40:56.766Z",
+      "clientId": "4108a20c-a682-4876-a2af-c614a5199a37",
+      "name": "rename-me.txt"
+    }
+  ],
+  "openaiCalls": []
+}

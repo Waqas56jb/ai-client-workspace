@@ -1,0 +1,31 @@
+{
+  "runId": "20261012e35c",
+  "records": [
+    {
+      "kind": "client",
+      "id": "bc03ff87-72fa-46dd-ba82-56976f9446f6",
+      "at": "2026-10-12T23:42:06.382Z",
+      "name": "QA_20261012e35c_Conv"
+    },
+    {
+      "kind": "job",
+      "id": "1c1d1d82-b106-46db-b030-40a4ba382f08",
+      "at": "2026-10-12T23:42:08.621Z",
+      "clientId": "bc03ff87-72fa-46dd-ba82-56976f9446f6"
+    },
+    {
+      "kind": "task",
+      "id": "171a18ec-a91e-48b4-94c4-3c9495261809",
+      "at": "2026-10-12T23:42:11.686Z",
+      "clientId": "bc03ff87-72fa-46dd-ba82-56976f9446f6",
+      "jobId": "1c1d1d82-b106-46db-b030-40a4ba382f08"
+    },
+    {
+      "kind": "client",
+      "id": "644833bc-cdd1-42b4-8cc8-9c2b61e6ab6d",
+      "at": "2026-10-12T23:42:52.982Z",
+      "name": "QA_20261012e35c_<img src=x onerror=alert(document.cookie)>"
+    }
+  ],
+  "openaiCalls": []
+}

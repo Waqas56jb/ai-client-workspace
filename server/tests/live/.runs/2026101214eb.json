@@ -1,0 +1,73 @@
+{
+  "runId": "2026101214eb",
+  "records": [
+    {
+      "kind": "client",
+      "id": "2aec3d7e-c33a-4cb9-aaf5-4a93dbb43697",
+      "at": "2026-10-12T23:37:33.285Z",
+      "name": "QA_2026101214eb_Files A"
+    },
+    {
+      "kind": "client",
+      "id": "d1d5255f-4aae-48f7-a3de-de310ca044da",
+      "at": "2026-10-12T23:37:35.659Z",
+      "name": "QA_2026101214eb_Files B"
+    },
+    {
+      "kind": "job",
+      "id": "b21454e9-c4ff-4eaa-83bb-796b63b422fe",
+      "at": "2026-10-12T23:37:37.862Z",
+      "clientId": "2aec3d7e-c33a-4cb9-aaf5-4a93dbb43697"
+    },
+    {
+      "kind": "task",
+      "id": "bee6141b-fe83-45c4-8d0a-9ae8c55f2946",
+      "at": "2026-10-12T23:37:40.579Z",
+      "clientId": "2aec3d7e-c33a-4cb9-aaf5-4a93dbb43697",
+      "jobId": "b21454e9-c4ff-4eaa-83bb-796b63b422fe"
+    },
+    {
+      "kind": "file",
+      "id": "0584f224-0fbd-40da-bb47-f8a0e8002b56",
+      "at": "2026-10-12T23:37:45.597Z",
+      "clientId": "2aec3d7e-c33a-4cb9-aaf5-4a93dbb43697",
+      "name": "QA_2026101214eb_logo.png"
+    },
+    {
+      "kind": "file",
+      "id": "006870b0-aa73-44d0-a026-7c9b4bb20f50",
+      "at": "2026-10-12T23:37:58.776Z",
+      "clientId": "2aec3d7e-c33a-4cb9-aaf5-4a93dbb43697",
+      "name": "Café menü – ürün.pdf"
+    },
+    {
+      "kind": "file",
+      "id": "c5a1d589-27d5-4fd5-8473-8dbb6af53237",
+      "at": "2026-10-12T23:38:01.759Z",
+      "clientId": "2aec3d7e-c33a-4cb9-aaf5-4a93dbb43697",
+      "name": "../../../etc/passwd.txt"
+    },
+    {
+      "kind": "file",
+      "id": "afe0d201-251b-446b-a2c8-b23873fffafc",
+      "at": "2026-10-12T23:38:06.584Z",
+      "clientId": "2aec3d7e-c33a-4cb9-aaf5-4a93dbb43697",
+      "name": "../../../etc/passwd.txt"
+    },
+    {
+      "kind": "file",
+      "id": "35401eb9-a4b4-4f88-87ee-ce3e859ab052",
+      "at": "2026-10-12T23:38:14.776Z",
+      "clientId": "2aec3d7e-c33a-4cb9-aaf5-4a93dbb43697",
+      "name": "broken.png"
+    },
+    {
+      "kind": "file",
+      "id": "a81e7831-91d9-4bc2-97cc-676c0db7a8c1",
+      "at": "2026-10-12T23:38:37.840Z",
+      "clientId": "2aec3d7e-c33a-4cb9-aaf5-4a93dbb43697",
+      "name": "rename-me.txt"
+    }
+  ],
+  "openaiCalls": []
+}

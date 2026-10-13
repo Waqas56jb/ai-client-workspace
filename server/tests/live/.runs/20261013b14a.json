@@ -1,0 +1,67 @@
+{
+  "runId": "20261013b14a",
+  "records": [
+    {
+      "kind": "client",
+      "id": "a5bbe5b3-f580-4bd2-937c-f430e9903a4e",
+      "at": "2026-10-13T00:06:48.322Z",
+      "name": "QA_20261013b14a_Faults"
+    },
+    {
+      "kind": "job",
+      "id": "a613f3c5-406e-4fe9-a437-4c794b06cedd",
+      "at": "2026-10-13T00:06:50.633Z",
+      "clientId": "a5bbe5b3-f580-4bd2-937c-f430e9903a4e"
+    },
+    {
+      "kind": "task",
+      "id": "046c2611-18c1-4bcc-9d25-7edbecab5352",
+      "at": "2026-10-13T00:06:53.461Z",
+      "clientId": "a5bbe5b3-f580-4bd2-937c-f430e9903a4e",
+      "jobId": "a613f3c5-406e-4fe9-a437-4c794b06cedd"
+    },
+    {
+      "kind": "generation",
+      "id": "f5bc8b8b-00c1-44a1-b39a-e8d712a25da3",
+      "at": "2026-10-13T00:07:08.994Z",
+      "fault": "429"
+    },
+    {
+      "kind": "generation",
+      "id": "a746ba96-6874-4edf-a24b-40149c40b57c",
+      "at": "2026-10-13T00:07:26.015Z",
+      "fault": "500"
+    },
+    {
+      "kind": "generation",
+      "id": "34b933d1-6b31-4a82-9bfa-5198577e04ed",
+      "at": "2026-10-13T00:07:44.485Z",
+      "fault": "401"
+    },
+    {
+      "kind": "generation",
+      "id": "c978cfd2-c323-482b-aaa3-2a94cf1c65f1",
+      "at": "2026-10-13T00:08:02.838Z",
+      "fault": "malformed"
+    },
+    {
+      "kind": "generation",
+      "id": "f7404e0d-0b3b-425a-99b6-c88fa6855c84",
+      "at": "2026-10-13T00:08:21.605Z",
+      "fault": "empty"
+    },
+    {
+      "kind": "generation",
+      "id": "529dab3f-c05a-4fd1-8e02-d8fc80b71554",
+      "at": "2026-10-13T00:08:39.322Z",
+      "fault": "incomplete"
+    },
+    {
+      "kind": "generation",
+      "id": "0fcb1cce-290e-4c76-b48d-c41241296b2f",
+      "at": "2026-10-13T00:09:17.633Z",
+      "fault": "hang"
+    }
+  ],
+  "openaiCalls": []
+}

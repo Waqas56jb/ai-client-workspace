@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="160" viewBox="0 0 480 160">
+  <rect width="480" height="160" rx="20" fill="#FFFFFF"/>
+  <circle cx="80" cy="80" r="48" fill="#0E2A47"/>
+  <path d="M52 92c10-8 20-8 28 0s18 8 28 0" fill="none" stroke="#5FD3E3" stroke-width="7" stroke-linecap="round"/>
+  <path d="M80 44 L80 82 L60 82 Z" fill="#FFFFFF"/>
+  <text x="148" y="78" font-family="Arial, sans-serif" font-size="40" font-weight="700" fill="#0E2A47">BAYLINE</text>
+  <text x="150" y="112" font-family="Arial, sans-serif" font-size="22" font-weight="400" fill="#4B6B88" letter-spacing="8">MARINE</text>
+</svg>

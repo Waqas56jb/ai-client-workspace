@@ -1,0 +1,25 @@
+{
+  "runId": "202610132959",
+  "records": [
+    {
+      "kind": "client",
+      "id": "9c33b2e0-8465-4f39-ab08-618064a09f3a",
+      "at": "2026-10-13T00:29:58.828Z",
+      "name": "QA_202610132959_E2E Pages Long Name Long Name Long Name Long Name Long Name"
+    },
+    {
+      "kind": "job",
+      "id": "aa303719-412e-4d00-bfd2-15d1f27e82f9",
+      "at": "2026-10-13T00:30:01.172Z",
+      "clientId": "9c33b2e0-8465-4f39-ab08-618064a09f3a"
+    },
+    {
+      "kind": "task",
+      "id": "9a03546b-c7f2-440a-bbbf-f36b135b349a",
+      "at": "2026-10-13T00:30:03.976Z",
+      "clientId": "9c33b2e0-8465-4f39-ab08-618064a09f3a",
+      "jobId": "aa303719-412e-4d00-bfd2-15d1f27e82f9"
+    }
+  ],
+  "openaiCalls": []
+}

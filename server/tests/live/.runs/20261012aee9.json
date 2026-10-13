@@ -1,0 +1,177 @@
+{
+  "runId": "20261012aee9",
+  "records": [
+    {
+      "kind": "client",
+      "id": "c91b9bab-4d98-4067-933d-2bf1c4db4023",
+      "at": "2026-10-12T23:44:42.497Z",
+      "name": "QA_20261012aee9_Zephyr Motors"
+    },
+    {
+      "kind": "client",
+      "id": "8e3428f9-33bf-4270-9be9-eb292595eea2",
+      "at": "2026-10-12T23:44:45.598Z",
+      "name": "QA_20261012aee9_Quokka Bakes"
+    },
+    {
+      "kind": "job",
+      "id": "4b833f02-05f8-4f55-80c6-3401f74f534b",
+      "at": "2026-10-12T23:44:47.758Z",
+      "clientId": "c91b9bab-4d98-4067-933d-2bf1c4db4023"
+    },
+    {
+      "kind": "job",
+      "id": "8d1a83ef-8618-48b1-854e-505e2b306840",
+      "at": "2026-10-12T23:44:49.929Z",
+      "clientId": "8e3428f9-33bf-4270-9be9-eb292595eea2"
+    },
+    {
+      "kind": "task",
+      "id": "321bd287-208d-435a-af4d-fa94574e6e2f",
+      "at": "2026-10-12T23:44:52.644Z",
+      "clientId": "c91b9bab-4d98-4067-933d-2bf1c4db4023",
+      "jobId": "4b833f02-05f8-4f55-80c6-3401f74f534b"
+    },
+    {
+      "kind": "task",
+      "id": "9c0ef2fa-e9a1-405a-a18a-367eebceadec",
+      "at": "2026-10-12T23:44:55.989Z",
+      "clientId": "c91b9bab-4d98-4067-933d-2bf1c4db4023",
+      "jobId": "4b833f02-05f8-4f55-80c6-3401f74f534b"
+    },
+    {
+      "kind": "task",
+      "id": "c9a5fd67-120c-4a6b-9b9e-e369ad6f2d09",
+      "at": "2026-10-12T23:44:58.971Z",
+      "clientId": "c91b9bab-4d98-4067-933d-2bf1c4db4023",
+      "jobId": "4b833f02-05f8-4f55-80c6-3401f74f534b"
+    },
+    {
+      "kind": "task",
+      "id": "4abb2d87-d430-4d4f-9bf5-bc36591f6997",
+      "at": "2026-10-12T23:45:01.807Z",
+      "clientId": "8e3428f9-33bf-4270-9be9-eb292595eea2",
+      "jobId": "8d1a83ef-8618-48b1-854e-505e2b306840"
+    },
+    {
+      "kind": "task",
+      "id": "1deeaf49-0c32-4d8d-865b-cd975e49e133",
+      "at": "2026-10-12T23:45:04.455Z",
+      "clientId": "8e3428f9-33bf-4270-9be9-eb292595eea2",
+      "jobId": "8d1a83ef-8618-48b1-854e-505e2b306840"
+    },
+    {
+      "kind": "file",
+      "id": "f32b535e-4d9f-4fb0-93d3-e0cfe27faec4",
+      "at": "2026-10-12T23:45:14.885Z"
+    },
+    {
+      "kind": "generation",
+      "id": "8d12bf7d-7d81-414c-8daf-b31cb2ceac63",
+      "at": "2026-10-12T23:45:34.241Z",
+      "status": "succeeded",
+      "label": "email A"
+    },
+    {
+      "kind": "generation",
+      "id": "8c79ba3e-4f2f-4b22-8dd3-af1a6f6d70a5",
+      "at": "2026-10-12T23:45:34.545Z",
+      "status": "succeeded",
+      "label": "email B"
+    },
+    {
+      "kind": "generation",
+      "id": "6bee80d7-d31b-4ee0-a15d-dda3f42016b5",
+      "at": "2026-10-12T23:45:50.214Z",
+      "status": "succeeded",
+      "label": "sms A"
+    },
+    {
+      "kind": "generation",
+      "id": "05c0c4a1-55ed-45d8-a519-76974805f19a",
+      "at": "2026-10-12T23:46:13.196Z",
+      "status": "succeeded",
+      "label": "injection B"
+    },
+    {
+      "kind": "generation",
+      "id": "25460b54-73e4-41ee-85a3-fb3a1dffcbeb",
+      "at": "2026-10-12T23:47:06.235Z",
+      "status": "succeeded",
+      "label": "ads B"
+    },
+    {
+      "kind": "generation",
+      "id": "e30c5ae1-ea8f-4eec-b56d-d9c0f6c3a80c",
+      "at": "2026-10-12T23:47:20.117Z",
+      "status": "succeeded",
+      "label": "vehicle A"
+    },
+    {
+      "kind": "generation",
+      "id": "2eb9d9b3-be92-4a16-8746-e9c45ee45649",
+      "at": "2026-10-12T23:48:09.119Z",
+      "status": "succeeded",
+      "label": "image landscape"
+    },
+    {
+      "kind": "generation",
+      "id": "dd167d4b-9e27-4f0b-90d9-35c963df0237",
+      "at": "2026-10-12T23:48:48.806Z",
+      "status": "succeeded",
+      "label": "image tall"
+    }
+  ],
+  "openaiCalls": [
+    {
+      "kind": "text",
+      "label": "email A",
+      "at": "2026-10-12T23:45:19.947Z"
+    },
+    {
+      "kind": "text",
+      "label": "email B",
+      "at": "2026-10-12T23:45:19.952Z"
+    },
+    {
+      "kind": "text",
+      "label": "sms A",
+      "at": "2026-10-12T23:45:36.116Z"
+    },
+    {
+      "kind": "text",
+      "label": "injection B",
+      "at": "2026-10-12T23:45:59.221Z"
+    },
+    {
+      "kind": "text",
+      "label": "revise A",
+      "at": "2026-10-12T23:46:14.195Z"
+    },
+    {
+      "kind": "text",
+      "label": "ads B",
+      "at": "2026-10-12T23:46:52.982Z"
+    },
+    {
+      "kind": "text",
+      "label": "vehicle A",
+      "at": "2026-10-12T23:47:06.740Z"
+    },
+    {
+      "kind": "image",
+      "label": "image landscape",
+      "at": "2026-10-12T23:47:35.607Z"
+    },
+    {
+      "kind": "image",
+      "label": "image tall",
+      "at": "2026-10-12T23:48:17.151Z"
+    },
+    {
+      "kind": "image",
+      "label": "image edit",
+      "at": "2026-10-12T23:48:56.035Z"
+    }
+  ]
+}
