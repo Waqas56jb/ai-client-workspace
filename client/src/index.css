@@ -7,8 +7,8 @@
   --color-canvas: #f7f8fc;
   --color-surface: #ffffff;
   --color-ink: #17182b;
-  --color-muted: #71748a;
-  --color-subtle: #9a9cb2;
+  --color-muted: #5d6075; /* ≥4.5:1 on canvas/surface (WCAG AA) */
+  --color-subtle: #6c6f86; /* ≥4.5:1 on canvas/surface (WCAG AA) */
   --color-line: #e8e9f2;
   --color-line-strong: #d9dbe8;
 
@@ -17,11 +17,11 @@
   --color-brand-soft: #f0eeff;
   --color-brand-accent: #8b7cff;
 
-  --color-success: #16865c;
+  --color-success: #11714d;
   --color-success-soft: #e8f7ef;
-  --color-warning: #b7791f;
+  --color-warning: #8f5c0e;
   --color-warning-soft: #fff5df;
-  --color-danger: #d64545;
+  --color-danger: #b83232;
   --color-danger-soft: #fdecec;
   --color-info: #2f6fdb;
   --color-info-soft: #eaf1fd;

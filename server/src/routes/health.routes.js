@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import { getDatabase } from '../config/db.js';
 import { env } from '../config/env.js';
@@ -26,8 +27,8 @@ router.get('/ready', async (_req, res) => {
   try {
     const b = await checkBucket();
     checks.storage = b.ok && b.isPrivate === true;
-  } catch {
-    /* reported below */
+  } catch (err) {
+    logger.warn({ err: err?.message, node: process.version }, 'readiness: storage check failed');
   }
   const ready = checks.database && checks.schema && checks.storage;
   res.status(ready ? 200 : 503).json({ success: ready, data: { status: ready ? 'ready' : 'not_ready', checks } });

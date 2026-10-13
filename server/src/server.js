@@ -6,7 +6,7 @@ import { drainQueue, startRunReconciliation } from './jobs/generationQueue.js';
 
 const app = createApp();
 const server = app.listen(env.PORT, () => {
-  logger.info({ config: safeConfigSummary() }, `API listening on port ${env.PORT}`);
+  logger.info({ config: safeConfigSummary(), node: process.version }, `API listening on port ${env.PORT}`);
   // Runs that were in flight when a previous process stopped can never finish.
   startRunReconciliation();
 });

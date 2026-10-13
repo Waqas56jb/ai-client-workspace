@@ -19,11 +19,24 @@ function LogoImage({ fileId, className, fallback }) {
  * Client logo: uploaded logo if available, otherwise initials on the brand colour.
  * Accepts a full client or a picked summary ({ name, primaryColor, logoFileId }).
  */
+/** Black or white initials, whichever is more readable on the client's brand colour. */
+function readableOn(hex) {
+  const h = String(hex).replace('#', '');
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  if (!/^[0-9a-f]{6}$/i.test(full)) return '#FFFFFF';
+  const lin = (i) => {
+    const c = parseInt(full.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const L = 0.2126 * lin(0) + 0.7152 * lin(2) + 0.0722 * lin(4);
+  return (1.05 / (L + 0.05)) >= ((L + 0.05) / 0.05) ? '#FFFFFF' : '#17182B';
+}
+
 export function ClientLogo({ client, size = 'md', className }) {
   const color = client?.primaryColor || client?.brand?.primaryColor || '#6257E8';
   const logoFileId = client?.logoFileId || client?.brand?.logoFileId;
   const fallback = (
-    <span className={cn('inline-flex shrink-0 select-none items-center justify-center font-bold text-white', LOGO_SIZES[size], className)} style={{ backgroundColor: color }} aria-hidden>
+    <span className={cn('inline-flex shrink-0 select-none items-center justify-center font-bold', LOGO_SIZES[size], className)} style={{ backgroundColor: color, color: readableOn(color) }} aria-hidden>
       {initials(client?.name || '?')}
     </span>
   );
