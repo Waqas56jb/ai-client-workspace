@@ -99,7 +99,8 @@ export async function createRevision(user, id, body) {
         userId: user.id,
         outputId: id,
         content: body.content ?? null,
-        sections: body.sections ?? null,
+        // New plain content without sections replaces sectioned copy (otherwise the source's sections are kept and the edit is invisible).
+        sections: body.sections != null ? body.sections : body.content !== undefined || body.sections === null ? [] : null,
         missing: body.missing ?? null,
         note: body.note,
         sourceVersionId: body.sourceVersionId ?? null,

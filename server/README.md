@@ -42,9 +42,18 @@ scripts/                   inspect-db · migrate · seed · provision-user · ch
 tests/                     vitest + supertest against an in-process Postgres (PGlite)
 ```
 
-**Data access and security model.** Every request runs in a single Postgres transaction that sets `request.jwt.claims` to the verified user and switches to the `authenticated` role. That means **Row Level Security applies to every query**, on top of the API's own checks. Membership means having an active row in `ai_workspace_users`; any other Supabase user on the same instance is refused (403) and can see nothing. The service-role key is used only for Storage object operations, after the API has authorised the request against database records, and by the operator provisioning script.
+**Data access and security model.** Every request runs in a single Postgres transaction that sets `request.jwt.claims` to the verified user, marks the transaction as API-originated (`ai_workspace.via_api`) and switches to the `authenticated` role. That means **Row Level Security applies to every query**, on top of the API's own checks. Membership means having an active row in `ai_workspace_users`; any other Supabase user on the same instance is refused (403) and can see nothing. The service-role key is used only for Storage object operations, after the API has authorised the request against database records, and by the operator provisioning script.
 
-**Long-running AI work.** `POST /ai/...` persists the user message plus a `generation_run`, then responds `202 { generationId }`. A worker calls OpenAI and persists the outputs, versions, assistant message and activity. Clients poll `GET /ai/generations/:id`. Failures mark the run `failed` and add an assistant error message, so a conversation is never left stuck in "generating". On startup, runs interrupted by a restart are marked failed and can be retried.
+**API-only access (migration 0004).** Supabase also exposes `public` through its own REST/RPC Data API. Membership (`ai_workspace_is_member()`) therefore also requires the API-only transaction flag, so a member's token used directly against `…/rest/v1/ai_workspace_*` or the private bucket returns nothing and cannot write. All reads and writes go through this API's validation, audit log and approval rules.
+
+**Long-running AI work.** `POST /ai/...` persists the user message plus a `generation_run`, then responds `202 { generationId }`. A worker calls OpenAI and persists the outputs, versions, assistant message and activity. Clients poll `GET /ai/generations/:id`. Failures, including a response truncated by the token limit (`AI_INCOMPLETE`), mark the run `failed` and add an assistant error message, so a conversation is never left stuck in "generating".
+
+Runs that can no longer finish are reconciled as `INTERRUPTED` and can be retried:
+- At graceful shutdown, the process gives in-flight runs about 8 s to finish, then fails the rest.
+- 30 s after start-up, runs started by a previous process are failed.
+- A periodic sweep fails runs older than any run can take.
+
+A run that was reconciled while still executing cannot later flip to succeeded, so no duplicate outputs appear. Runs use an in-process queue, so **deploy a single replica**.
 
 ---
 
@@ -127,6 +136,8 @@ The frontend then runs with `VITE_DATA_MODE=api` and `VITE_API_BASE_URL=http://l
 - Guard triggers make versions immutable (only draft → approved) and make approvals and activity append-only.
 - Version numbers are unique per output and per file, and are allocated under row locks in SQL functions.
 - Clients, jobs, tasks and files are **archived**, never hard-deleted, so history is preserved.
+- A job or task that already has conversations, AI outputs or files **cannot be moved to a different client** (409). Its history, approvals and AI context belong to the original client. Empty jobs and tasks can still be moved, and so can anything moved within the same client.
+- Re-approving an earlier approved version makes it the current approved version again. Its original approval record is kept, and no duplicate is created.
 
 **Safe migrations.** Read [`supabase/migrations/README.md`](supabase/migrations/README.md). The runner does a dry run by default, refuses destructive SQL, checks for conflicts and checksums, and is never run on application start.
 
@@ -218,21 +229,16 @@ The frontend signs in with Supabase, attaches the token, and polls generation ru
 
 ## Testing
 
-```bash
-npm test
-```
+| Command | Runs | External services |
+| --- | --- | --- |
+| `npm test` | Unit and integration tests in-process: the real migrations on PGlite, with in-memory Storage and a fake OpenAI | none |
+| `npm run test:live` | Live QA suite against the running API, the real Supabase project and real OpenAI. See [tests/live/README.md](tests/live/README.md) | Supabase, OpenAI (bounded budget) |
+| `npm run test:live:no-ai` / `:ai` / `:security` | Subsets of the live suite | |
+| `npm run qa:smoke -- --api … --web …` | Non-destructive deployment smoke test | deployment |
+| `npm run qa:provision` / `npm run qa:cleanup` | Create QA accounts / remove QA data (dry run by default) | Supabase |
+| `cd ../client && npm run test:e2e` | Playwright against the production build and this API | Supabase, OpenAI (1 call) |
 
-**About 200 tests** run in-process: the real migrations are applied to PGlite (embedded Postgres) with stubbed `auth` and `storage` schemas, Storage is faked in memory, and OpenAI is faked. Tests **never** touch the shared Supabase project.
-
-| Area | What the tests check |
-| --- | --- |
-| Auth | Missing or invalid tokens, inactive users and non-members are rejected |
-| Database safety | Migrations use only the prefix, contain nothing destructive, can be re-run, and leave unrelated tables and buckets untouched; RLS hides data from non-members; seeding preserves edits |
-| Client context | A job/task from a different client is rejected; another client's files can't be attached; AI context contains no other client's data |
-| Revisions | Old versions are preserved; version numbers stay unique under concurrency; a revision of approved work is a draft; restore creates a new version |
-| Approvals | Only valid versions can be approved; duplicates get 409; `/approved` returns only approved versions |
-| Images | Invalid dimensions are rejected; final size is verified; the original is preserved |
-| API | CRUD, validation envelopes, search and filters, pagination, authenticated downloads, safe provider errors, AI rate limit, idempotency, concurrency limit |
+The in-process suite proves logic and database rules (RLS, immutability, isolation). It does **not** prove the real integrations. The live suite and the E2E suite do that.
 
 `npm run ai:check` performs a real, low-cost OpenAI call. Run it only when you want to verify the live key.
 
@@ -243,10 +249,12 @@ npm test
 1. Create a Railway service from the repository and set **Root Directory** to `server`.
 2. Railway uses `railway.json`: `npm start`, health check at `/api/v1/health`, restart on failure.
 3. Add every variable from the table above in **Variables**. Use the transaction pooler for `DATABASE_*`.
-4. Deploy, then check `https://<service>.up.railway.app/api/v1/health` and `/health/ready`.
+4. Deploy, then check `https://<service>.up.railway.app/api/v1/health` and `/health/ready`. Keep the service at **one replica** (in-process generation queue).
 5. In Vercel, set `VITE_API_BASE_URL` to `https://<service>.up.railway.app/api/v1` and redeploy the frontend.
 6. Set `CLIENT_ORIGIN` on Railway to the exact Vercel origin, for example `https://studioflow.vercel.app`.
-7. Run migrations and seeding from your machine with the scripts above. They are not part of the deploy.
+7. Run migrations and seeding from your machine with the scripts above. They are not part of the deploy. (Migrations 0001–0004 must all be applied.)
+8. Verify: `npm run qa:smoke -- --api https://<service>.up.railway.app/api/v1 --web https://<vercel-domain>`.
+9. Supabase Auth on the shared project currently allows public sign-ups. That does not grant workspace access, because membership is enforced, but disable sign-ups if no other project on the instance needs them.
 
 The server keeps nothing on local disk. Uploads are processed in memory and stored in Supabase Storage. It shuts down gracefully on `SIGTERM`.
 

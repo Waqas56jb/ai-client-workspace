@@ -210,7 +210,7 @@ function RecentFiles({ files, loading, dateFormat }) {
       ) : (
         <ul className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
           {files.map((f) => (
-            <li key={f.id}>
+            <li key={f.id} className="min-w-0">
               <Link to={`/files/${f.id}`} className="group block overflow-hidden rounded-xl border border-line bg-surface transition-[border,box-shadow] hover:border-line-strong hover:shadow-pop/40 focus-ring">
                 <FileThumb file={f} className="h-[110px] w-full border-b border-line" />
                 <div className="p-3">

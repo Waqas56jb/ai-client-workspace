@@ -1,50 +1,26 @@
 # StudioFlow AI — Frontend
 
-React 19 + Vite frontend for the StudioFlow AI client workspace. It runs in two modes:
+React 19 + Vite frontend for the StudioFlow AI client workspace.
 
-- **Demo mode** (`VITE_DATA_MODE=mock`, the default) runs completely in the browser: no backend, database or API keys are needed.
-- **API mode** (`VITE_DATA_MODE=api`) signs in with Supabase Auth and talks to the Node.js API (`../server`), which owns OpenAI, Postgres and Storage. See [API mode](#api-mode).
+- **API mode** (`VITE_DATA_MODE=api`, the default and the only production mode) signs in with Supabase Auth and talks to the Node.js API (`../server`), which owns OpenAI, Postgres and Storage. See [API mode](#api-mode).
+- **Demo mode** (`VITE_DATA_MODE=mock`) is for local UI work only. It runs on in-browser sample data with simulated AI and demo accounts. `npm run build` refuses it unless `VITE_ALLOW_DEMO_BUILD=true` is set deliberately. In API builds the demo code, seed data and sample files are **not bundled** (see `vite.config.js`).
 
 ## Run locally
 
 ```bash
 npm install
-npm run dev       # development server at http://localhost:5173
-npm run build     # production build in dist/
-npm run preview   # serve the production build locally
+cp .env.example .env   # API mode: set VITE_API_BASE_URL, VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+npm run dev            # development server at http://localhost:5173
+npm run build          # production build in dist/ (fails if API-mode variables are missing)
+npm run preview        # serve the production build locally
+npm run test:e2e       # Playwright end-to-end tests against the real API (see e2e/ and ../server/tests/live/README.md)
 ```
 
 Requires Node.js 20.19+ or 22.12+.
 
-## Demo accounts
+## Demo mode (development only)
 
-All three accounts share one workspace. The password for each is **`studioflow`**.
-
-| Name | Email | Role |
-| --- | --- | --- |
-| Amelia Hart | amelia@studioflow.demo | Creative Director |
-| Jordan Reyes | jordan@studioflow.demo | Senior Copywriter |
-| Sam Okafor | sam@studioflow.demo | Designer & Production |
-
-> ⚠️ **Demo authentication is not security.** Credentials are checked in the browser against mock data, and the route guard only controls what the UI shows. Real authentication will be provided by the Node.js backend.
-
-## What's simulated in demo mode
-
-| Capability | Demo behaviour | Production plan |
-| --- | --- | --- |
-| Sign-in | Checked in the browser (`services/authService.js`) | Backend sessions / JWT |
-| AI generation | Template-based responses from `services/mock/aiGenerators.js`. No OpenAI call is made, and the UI labels results as simulated | Node.js server calls OpenAI |
-| Images | Brand-coloured SVG placeholders rendered at the requested size. PNG downloads are rasterised to the exact requested pixels | Image API plus a server-side resize/crop step |
-| Persistence | Versioned `localStorage` document, shared by all demo users in this browser | Supabase Postgres |
-| Uploaded files | Held temporarily in this browser's IndexedDB and may be evicted | Supabase Storage |
-| Search | Runs over the current mock data in the browser | Postgres full-text search |
-| Backups | Explained in Settings only. No backup has been run | Supabase backups / PITR |
-
-Browser persistence is **not** a database. Clearing site data, or switching to a different browser or device, gives you a fresh demo workspace. You can also reset it from **Settings → Storage**.
-
-Useful demo switches:
-- Put `[simulate error]` in a prompt, or turn on **Settings → Preferences → Simulate occasional AI failures**, to try the retry flow.
-- In **AI Instructions**, lines such as `Append: …`, `Prefix: …` or `Sign-off: …` visibly change the simulated output. The prepared request also includes every saved instruction.
+With `VITE_DATA_MODE=mock`, three demo accounts with a shared demo password are listed on the login page. Sign-in, AI output, persistence (`localStorage`/IndexedDB) and search are all simulated in the browser. **None of this is security or real data.** Never deploy a mock build to clients.
 
 ## Architecture
 
@@ -61,27 +37,27 @@ src/
 ├── features/       one folder per route area (pages + feature-private components)
 ├── hooks/          React Query hooks (useData.js) and utilities (breadcrumbs, hotkeys, unsaved changes, file sources)
 ├── lib/            config, constants, utils, zod schemas, aiRequestBuilder, imageRenderer, media helpers, diff
-├── services/       the ONLY data-access layer (mock ↔ API switch)
-│   └── mock/          localStorage db, IndexedDB blob store, relations, AI generators
+├── services/       the ONLY data-access layer (API, or demo implementation in mock mode)
+│   └── mock/          demo only: localStorage db, IndexedDB blob store, relations, simulated AI (stubbed out of API builds)
 ├── store/          Zustand: auth session + UI preferences
-└── mock-data/      interconnected seed data (users, clients, jobs, tasks, conversations, outputs, versions, files, presets, instructions, activity)
+└── mock-data/      demo-only seed data (stubbed out of API builds)
 ```
 
 ### Service layer and API readiness
 
 Every service function goes through `call({ mock, api })` in `services/apiClient.js`:
 
-- `VITE_DATA_MODE=mock` (the default) runs the in-browser implementation.
-- `VITE_DATA_MODE=api` sends the request to `VITE_API_BASE_URL` instead.
+- `VITE_DATA_MODE=api` (the default) sends the request to `VITE_API_BASE_URL`. Paginated lists are fetched page by page (`apiClient.getAll`), so nothing is cut off at the first page.
+- `VITE_DATA_MODE=mock` runs the in-browser demo implementation.
 
 Both paths return the same DTO shapes and throw the same `ServiceError` (`message`, `status`, `code`, `details`), so pages don't know which mode they're in. The real endpoints are in each service's `api:` branch. See also `../server/README.md`.
 
-### Key business rules (enforced in `services/versionService.js`)
+### Key business rules (enforced by the API and the database)
 
 - Every output has immutable **versions**. Edits, regenerations and restores always create a **new draft version**.
 - **Revising approved work never changes the approved version.** Approved Work keeps showing it until another version is explicitly approved.
 - Approving a version moves `output.approvedVersionId` and records who approved it and when. The full history is kept.
-- AI requests (`lib/aiRequestBuilder.js`) include **only the selected client's** profile, filtered to what each tool needs, plus the job, task, tool instructions, preset, attachments and recent history.
+- AI context is built **on the server** from the task → job → client records. It includes only that client's profile, the job, the task, the tool instructions, the preset, same-client attachments and recent history.
 
 ## Environment variables
 
@@ -89,11 +65,13 @@ Copy `.env.example` to `.env`:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `VITE_DATA_MODE` | `mock` | `mock` for demo mode, `api` to use the backend |
+| `VITE_DATA_MODE` | `api` | `api` (production). `mock` = development-only demo mode |
+| `VITE_ALLOW_DEMO_BUILD` | — | Must be `true` to `npm run build` in mock mode (intentional demo builds only) |
+| `VITE_MAX_UPLOAD_MB` | `15` | Upload limit shown in the browser. Keep it equal to the API's `MAX_UPLOAD_SIZE_MB` |
 | `VITE_API_BASE_URL` | `http://localhost:5000/api/v1` | Node.js API base URL **including `/api/v1`** (local or Railway) |
 | `VITE_SUPABASE_URL` | — | Supabase project URL (api mode) |
 | `VITE_SUPABASE_ANON_KEY` | — | Supabase **anon / publishable** key (api mode). Public by design |
-| `VITE_MOCK_LATENCY_MS` | `250` | Simulated latency for mock calls |
+| `VITE_MOCK_LATENCY_MS` | `250` | Simulated latency for mock calls (demo mode only) |
 
 **Never put secrets in `VITE_` variables.** They are bundled into public JavaScript. The OpenAI key and the Supabase **service-role** key belong only on the server.
 
@@ -112,8 +90,8 @@ Copy `.env.example` to `.env`:
 1. Import the repository in Vercel.
 2. Set **Root Directory** to `client`.
 3. Framework preset: **Vite**. Build command: `npm run build`. Output directory: `dist`.
-4. Add the environment variables. For demo mode, `VITE_DATA_MODE=mock` is enough.
-5. Deploy. `vercel.json` rewrites every app route to `index.html`, so direct links and page refreshes work on routes such as `/clients/c_mowsc/brand`.
+4. Add the environment variables: `VITE_DATA_MODE=api`, `VITE_API_BASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_MAX_UPLOAD_MB`. The build fails if any of the first four is missing.
+5. Deploy. `vercel.json` rewrites every app route to `index.html`, so direct links and page refreshes work on routes such as `/clients/<id>/brand`. It also sets basic security headers (`nosniff`, `X-Frame-Options: DENY`, referrer and permissions policies).
 
 ### Connecting the Railway backend
 
@@ -121,7 +99,8 @@ Copy `.env.example` to `.env`:
 2. In Vercel, set `VITE_DATA_MODE=api`, `VITE_API_BASE_URL=https://<your-service>.up.railway.app/api/v1`, `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
 3. Add the Vercel domain to the server's CORS allow-list (it must allow the `Authorization` and `Idempotency-Key` headers) and to Supabase Auth's redirect URLs.
 4. Redeploy the frontend, because Vite inlines environment variables at build time.
+5. Verify: `cd ../server && npm run qa:smoke -- --api https://<railway>/api/v1 --web https://<vercel-domain>`.
 
-## Permanent file storage
+## File storage
 
-Files uploaded in demo mode only live in this browser. In API mode files are stored privately in **Supabase Storage** and served through short-lived signed URLs. Generated outputs are stored as small render descriptions and text, so they survive a page refresh. Uploaded binaries are temporary.
+In API mode, uploaded files and generated images are stored privately in **Supabase Storage** (bucket `ai-workspace-files`). They are served only through short-lived signed URLs issued by the API after it checks access. Text outputs and every version are stored in Postgres.

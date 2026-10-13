@@ -60,7 +60,13 @@ export default defineConfig(({ command, mode }) => {
   }
   if (!mock) {
     const missing = ['VITE_API_BASE_URL', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'].filter((k) => !env[k]);
-    if (command === 'build' && missing.length) throw new Error(`Missing required build variables for API mode: ${missing.join(', ')}`);
+    if (command === 'build' && missing.length) {
+      throw new Error(
+        `Missing required build variables for API mode: ${missing.join(', ')}. ` +
+          'On Vercel: Project → Settings → Environment Variables, add them (VITE_API_BASE_URL = https://<railway-service>/api/v1, ' +
+          'VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY = the anon/publishable key — never the service-role key), then redeploy.',
+      );
+    }
   }
   return {
     plugins: [react(), tailwindcss(), ...(mock ? [] : [excludeMockModules()])],

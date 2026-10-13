@@ -35,13 +35,14 @@ test('client created through the API appears in the UI list and search; duplicat
   await login(page);
   await page.goto(`/clients`);
   await page.getByRole('searchbox').first().fill(c.name).catch(() => {});
-  await expect(page.getByText(c.name).first()).toBeVisible();
+  await expect(page.locator('main a', { hasText: c.name }).first()).toBeVisible();
   await page.goto(`/search?q=${encodeURIComponent(c.name)}`);
-  await expect(page.getByText(c.name).first()).toBeVisible();
+  await expect(page.locator('main a', { hasText: c.name }).first()).toBeVisible();
   // duplicate slug → field-level error (was only a toast before the fix)
   await page.goto('/clients/new');
   await page.getByRole('textbox', { name: 'Client name' }).fill(c.name);
   await page.getByRole('textbox', { name: /internal identifier/i }).fill(c.slug);
+  await page.getByRole('combobox', { name: 'Industry' }).fill('Automotive').catch(async () => page.getByLabel('Industry').fill('Automotive'));
   await page.getByRole('button', { name: 'Create client' }).click();
   await expect(page.locator('p[role="alert"]').filter({ hasText: /identifier|slug/i })).toBeVisible();
 });
@@ -69,17 +70,17 @@ test('task created in the UI persists and opens the workspace; AI email generate
   await page.locator('#ws-prompt').fill('Write a short email inviting customers to our open day on Saturday.');
   await page.getByRole('button', { name: /^(send|generate)/i }).last().click();
   await expect(page.getByText(/generating/i).first()).toBeVisible();
-  await expect(page.getByRole('button', { name: /approve v1/i })).toBeVisible({ timeout: 180_000 });
+  await expect(page.getByRole('button', { name: /approve v1/i }).first()).toBeVisible({ timeout: 180_000 });
   const [out] = await dbRead('select id, approved_version_id from public.ai_workspace_outputs where task_id = $1', [task.id]);
   expect(out.approved_version_id).toBeNull();
-  await page.getByRole('button', { name: /approve v1/i }).click();
+  await page.getByRole('button', { name: /approve v1/i }).first().click();
   await page.getByRole('dialog').getByRole('button', { name: 'Approve version' }).click();
   await expect.poll(async () => (await dbRead('select approved_version_id from public.ai_workspace_outputs where id = $1', [out.id]))[0].approved_version_id).not.toBeNull();
   await page.reload();
   await expect(page.getByText(/approved/i).first()).toBeVisible();
   await page.goto('/approved');
   const [o] = await dbRead('select title from public.ai_workspace_outputs where id = $1', [out.id]);
-  await expect(page.getByText(o.title).first()).toBeVisible();
+  await expect(page.locator('main').getByText(o.title).first()).toBeVisible();
   // the conversation survives a new login session
   await page.context().clearCookies();
   await page.evaluate(() => localStorage.clear());

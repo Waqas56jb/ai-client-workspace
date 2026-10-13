@@ -14,7 +14,14 @@
     "db:migrate": "node scripts/migrate.js",
     "db:seed": "node scripts/seed.js",
     "users:provision": "node scripts/provision-user.js",
-    "ai:check": "node scripts/check-openai.js"
+    "ai:check": "node scripts/check-openai.js",
+    "test:live": "vitest run -c vitest.live.config.js",
+    "test:live:no-ai": "vitest run -c vitest.live.config.js --exclude tests/live/ai.live.test.js",
+    "test:live:ai": "vitest run -c vitest.live.config.js tests/live/ai.live.test.js",
+    "test:live:security": "vitest run -c vitest.live.config.js tests/live/security.live.test.js tests/live/auth.live.test.js tests/live/routes.live.test.js",
+    "qa:provision": "node scripts/qa/provision-qa-users.js",
+    "qa:cleanup": "node scripts/qa/cleanup-qa-data.js",
+    "qa:smoke": "node scripts/qa/smoke.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",

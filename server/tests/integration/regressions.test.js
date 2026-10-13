@@ -270,3 +270,21 @@ describe('image edit with reference images', () => {
     expect(r.status).toBe(400);
   });
 });
+
+describe('manual revisions of sectioned (advertising) outputs', () => {
+  it('a content-only revision replaces the sections so the edit is visible', async () => {
+    fake.text = 'Headline: Fresh bread\nCTA: Visit today';
+    const gen = await request(app)
+      .post('/api/v1/ai/advertising/generate')
+      .set(A)
+      .send({ taskId: ids.task, options: { campaignName: 'Bread', product: 'Bread', outputTypes: ['headlines', 'cta'] } });
+    const outputId = (await poll(gen.body.data.generationId)).outputs[0].id;
+    const rev = await request(app).post(`/api/v1/outputs/${outputId}/revisions`).set(A).send({ content: 'Completely rewritten copy' });
+    expect(rev.status).toBe(201);
+    const { rows } = await db.query('select content, sections from public.ai_workspace_output_versions where output_id = $1 order by version_number desc limit 1', [outputId]);
+    expect(rows[0].content).toBe('Completely rewritten copy');
+    expect(rows[0].sections ?? []).toEqual([]);
+    const dto = (await request(app).get(`/api/v1/outputs/${outputId}`).set(A)).body.data;
+    expect(JSON.stringify(dto)).toContain('Completely rewritten copy');
+  });
+});
