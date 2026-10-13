@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { cloneElement, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreHorizontal } from 'lucide-react';
 import { Button } from './Button';
@@ -78,8 +78,9 @@ export function Menu({ items, trigger, align = 'end', label = 'More actions', cl
   return (
     <>
       {trigger ? (
-        <span ref={btnRef} className={cn('inline-flex', className)} onClick={toggle} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined}>
-          {trigger}
+        <span ref={btnRef} className={cn('inline-flex', className)} onClick={toggle}>
+          {/* ARIA state belongs on the focusable trigger itself, not on the wrapper span */}
+          {isValidElement(trigger) ? cloneElement(trigger, { 'aria-haspopup': 'menu', 'aria-expanded': open, 'aria-controls': open ? id : undefined }) : trigger}
         </span>
       ) : (
         <Button ref={btnRef} variant="ghost" size="icon-sm" icon={MoreHorizontal} aria-label={label} aria-haspopup="menu" aria-expanded={open} onClick={toggle} className={className} />

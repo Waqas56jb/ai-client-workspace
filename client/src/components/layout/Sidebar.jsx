@@ -132,7 +132,7 @@ export function Sidebar({ mobile = false, onNavigate }) {
                 <button
                   type="button"
                   onClick={() => setClosedSections((s) => ({ ...s, [section.id]: !s[section.id] }))}
-                  className="mb-1 flex w-full items-center justify-between rounded px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#6E6F8E] hover:text-sidebar-muted focus-visible:ring-2 focus-visible:ring-brand-accent/60 outline-none"
+                  className="mb-1 flex w-full items-center justify-between rounded px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#9294B3] hover:text-sidebar-muted focus-visible:ring-2 focus-visible:ring-brand-accent/60 outline-none"
                   aria-expanded={!closed}
                 >
                   {section.label}
