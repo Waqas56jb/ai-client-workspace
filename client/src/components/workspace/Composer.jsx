@@ -96,7 +96,7 @@ export function Composer({
               {controlsTitle || `${t?.short} settings`}
               <ChevronDown size={14} className={cn('ml-auto text-muted transition-transform', controlsOpen && 'rotate-180')} aria-hidden />
             </button>
-            {controlsOpen && <div className="max-h-[38vh] overflow-y-auto border-t border-line px-3 py-3 scrollbar-thin">{controls}</div>}
+            {controlsOpen && <div className="max-h-[30vh] overflow-y-auto border-t border-line px-3 py-3 scrollbar-thin">{controls}</div>}
           </div>
         )}
 

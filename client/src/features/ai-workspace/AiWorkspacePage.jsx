@@ -251,6 +251,8 @@ function Workspace({ task, client }) {
   };
 
   const switchTool = (id) => {
+    // Advertising and vehicle requests are filled in through their form, so show it.
+    if (id === 'advertising' || id === 'vehicle') setControlsOpen(true);
     const patch = { tool: id };
     if (selectedConv?.tool && selectedConv.tool !== id) patch.conversation = null;
     updateParams(patch);
@@ -290,7 +292,11 @@ function Workspace({ task, client }) {
   const [prompts, setPrompts] = useState(EMPTY_BY_TOOL);
   const [attachments, setAttachments] = useState(EMPTY_LIST_BY_TOOL);
   const [errors, setErrors] = useState({});
-  const [controlsOpen, setControlsOpen] = useState(() => typeof window === 'undefined' || window.matchMedia('(min-width: 768px)').matches);
+  // Options start collapsed on normal-height screens so the conversation stays readable;
+  // the collapsed header still shows the current settings (e.g. "Email · Friendly · medium").
+  const [controlsOpen, setControlsOpen] = useState(
+    () => typeof window === 'undefined' || window.matchMedia('(min-width: 768px) and (min-height: 1000px)').matches,
+  );
   const imageTouched = useRef(false);
 
   useEffect(() => {
@@ -399,6 +405,8 @@ function Workspace({ task, client }) {
       return;
     }
     setErrors({});
+    // Give the conversation the space once a writing or image request is on its way.
+    if (tool === 'writing' || tool === 'image') setControlsOpen(false);
     sendMut.mutate({
       taskId: task.id,
       conversationId: selectedConv?.id,
