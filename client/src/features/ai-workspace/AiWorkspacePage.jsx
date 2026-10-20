@@ -634,9 +634,12 @@ function Workspace({ task, client, variant = 'task', fixedConversationId = null,
           <Button size="sm" variant={rightOpen ? 'secondary' : 'ghost'} icon={PanelRight} onClick={() => toggle('right')} aria-pressed={rightOpen}>
             Details
           </Button>
-          <Button size="sm" variant="primary" icon={MessageSquarePlus} onClick={onNewChat} className="hidden lg:inline-flex">
-            New chat
-          </Button>
+          {/* small screens already have "New chat" in the bar above */}
+          <span className="hidden lg:block">
+            <Button size="sm" variant="primary" icon={MessageSquarePlus} onClick={onNewChat}>
+              New chat
+            </Button>
+          </span>
         </header>
       ) : (
         <ContextHeader task={task} client={client} job={job} leftOpen={leftOpen} rightOpen={rightOpen} onToggleLeft={() => toggle('left')} onToggleRight={() => toggle('right')} />
