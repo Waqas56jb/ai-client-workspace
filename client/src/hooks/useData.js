@@ -56,6 +56,8 @@ export const useTask = (id, o) => useQuery({ queryKey: qk.task(id), queryFn: () 
 export const useUsers = (o) => useQuery({ queryKey: qk.users(), queryFn: () => userService.list(), ...o });
 export const useActivity = (params = {}, o) => useQuery({ queryKey: qk.activity(params), queryFn: () => activityService.list(params), ...o });
 export const useConversations = (taskId, o) => useQuery({ queryKey: qk.conversations(taskId), queryFn: () => conversationService.listByTask(taskId), ...opt(!!taskId), ...o });
+export const useChatHistory = (params = {}, o) =>
+  useQuery({ queryKey: ['chat-history', params], queryFn: () => conversationService.history(params), placeholderData: (prev) => prev, ...o });
 export const useConversation = (id, o) => useQuery({ queryKey: qk.conversation(id), queryFn: () => conversationService.get(id), ...opt(!!id), ...o });
 export const useOutputs = (params = {}, o) => useQuery({ queryKey: qk.outputs(params), queryFn: () => outputService.list(params), ...o });
 export const useOutput = (id, o) => useQuery({ queryKey: qk.output(id), queryFn: () => outputService.get(id), ...opt(!!id), ...o });

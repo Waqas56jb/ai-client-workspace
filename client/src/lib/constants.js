@@ -91,7 +91,7 @@ export const WRITING_FORMATS = [
   { id: 'other', label: 'Other text' },
 ];
 
-export const TONES = ['Professional', 'Friendly', 'Warm', 'Confident', 'Playful', 'Urgent', 'Premium', 'Informative'];
+export const TONES = ['Professional', 'Persuasive', 'Formal', 'Casual', 'Friendly', 'Warm', 'Confident', 'Playful', 'Urgent', 'Premium', 'Informative'];
 export const LENGTHS = [
   { id: 'short', label: 'Short' },
   { id: 'medium', label: 'Medium' },

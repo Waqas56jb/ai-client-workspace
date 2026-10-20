@@ -16,7 +16,7 @@ export const EMPTY_BRAND = {
   website: '',
   tone: 'Professional',
   formality: 'Balanced',
-  spelling: 'British English',
+  spelling: 'Australian English',
   useWords: '',
   avoidWords: '',
   formatting: '',

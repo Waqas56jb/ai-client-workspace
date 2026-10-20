@@ -66,4 +66,44 @@ export const conversationService = {
         }),
       api: () => apiClient.patch(`/conversations/${id}`, patch),
     }),
+
+  /**
+   * Workspace-wide chat history, newest activity first.
+   * @param {{ search?, clientId?, tool?, from?: string, to?: string, page?, limit? }} params  from/to: ISO instants
+   * @returns {Promise<{ items: object[], meta: object }>}
+   */
+  history: (params = {}) =>
+    call({
+      mock: () => {
+        const db = getDb();
+        let list = db.conversations.map((c) => enrich(db, c));
+        if (params.clientId) list = list.filter((c) => c.clientId === params.clientId);
+        if (params.tool) list = list.filter((c) => c.tool === params.tool);
+        if (params.search) list = list.filter((c) => `${c.title} ${c.lastMessage?.content || ''}`.toLowerCase().includes(params.search.toLowerCase()));
+        if (params.from) list = list.filter((c) => c.updatedAt >= params.from);
+        if (params.to) list = list.filter((c) => c.updatedAt < params.to);
+        const items = sortBy(list, 'updatedAt', 'desc').map((c) => {
+          const task = db.tasks.find((t) => t.id === c.taskId);
+          const client = db.clients.find((x) => x.id === c.clientId);
+          const job = db.jobs.find((j) => j.id === c.jobId);
+          return { ...c, lastActivityAt: c.updatedAt, client: client && { id: client.id, name: client.name, primaryColor: client.brand?.primaryColor }, job: job && { id: job.id, title: job.title }, task: task && { id: task.id, title: task.title } };
+        });
+        return { items, meta: { page: 1, limit: items.length, total: items.length, pages: 1 } };
+      },
+      api: async () => {
+        const res = await apiClient.get('/conversations', { params });
+        return { data: { items: res.data || [], meta: res.meta } };
+      },
+    }),
+
+  /** Where a client's quick AI Assistant chats live: { clientId, jobId, taskId } (created once on the server). */
+  assistantSession: (clientId) =>
+    call({
+      mock: () => {
+        const task = getDb().tasks.find((t) => t.clientId === clientId && !t.archivedAt);
+        if (!task) throw notFound('Task for this client');
+        return { clientId, jobId: task.jobId, taskId: task.id };
+      },
+      api: () => apiClient.post('/assistant/session', { clientId }),
+    }),
 };
