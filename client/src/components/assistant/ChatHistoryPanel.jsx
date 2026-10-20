@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { CalendarDays, History, ImageIcon, Mail, Plus, Search, X } from 'lucide-react';
 import { Button, Skeleton } from '@/components/ui';
-import { useChatHistory, useDebouncedValue } from '@/hooks';
+import { useChatHistory, useDebounce } from '@/hooks';
 import { dayRange, groupByRecency, shortWhen } from '@/lib/chatDates';
 import { cn } from '@/lib/utils';
 
@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 export function ChatHistoryPanel({ activeId, onNewChat, className }) {
   const [search, setSearch] = useState('');
   const [date, setDate] = useState('');
-  const q = useDebouncedValue(search.trim(), 250);
+  const q = useDebounce(search.trim(), 250);
   const params = useMemo(() => ({ search: q || undefined, ...dayRange(date), limit: 100 }), [q, date]);
   const { data, isLoading, isError } = useChatHistory(params);
   const groups = useMemo(() => groupByRecency(data?.items || []), [data]);
