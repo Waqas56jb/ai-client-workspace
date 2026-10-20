@@ -616,7 +616,7 @@ function Workspace({ task, client, variant = 'task', fixedConversationId = null,
       {isAssistant ? (
         <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-surface px-4 py-2.5">
           <ClientLogo client={client} size="sm" />
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 basis-[calc(100%-3rem)] sm:basis-0">
             <p className="truncate text-[15px] font-semibold leading-5 text-ink">{selectedConv?.title || 'New chat'}</p>
             <p className="truncate text-[12.5px] leading-4 text-muted">
               {client.name} · only this client’s brand details are used
@@ -634,7 +634,7 @@ function Workspace({ task, client, variant = 'task', fixedConversationId = null,
           <Button size="sm" variant={rightOpen ? 'secondary' : 'ghost'} icon={PanelRight} onClick={() => toggle('right')} aria-pressed={rightOpen}>
             Details
           </Button>
-          <Button size="sm" variant="primary" icon={MessageSquarePlus} onClick={onNewChat}>
+          <Button size="sm" variant="primary" icon={MessageSquarePlus} onClick={onNewChat} className="hidden lg:inline-flex">
             New chat
           </Button>
         </header>
@@ -701,7 +701,7 @@ function Workspace({ task, client, variant = 'task', fixedConversationId = null,
                     <EmptyConversation
                       tool={tool}
                       client={client}
-                      job={job}
+                      job={isAssistant ? null : job}
                       onPick={(ex) => {
                         setPrompts((p) => ({ ...p, [tool]: ex }));
                         focusPrompt();
