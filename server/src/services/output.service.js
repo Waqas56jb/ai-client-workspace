@@ -389,7 +389,7 @@ export async function toVersionDto(row, sign = signer()) {
     kind: row.output_kind,
     title: row.title,
     content: row.content,
-    sections: row.sections ?? null,
+    sections: Array.isArray(row.sections) && row.sections.length ? row.sections : null, // an empty list means plain text, not 0 sections
     image,
     missing: row.missing_info ?? null,
     note: row.revision_note,

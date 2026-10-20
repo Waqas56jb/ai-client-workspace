@@ -78,6 +78,8 @@ export async function listJobs(tx, { search, clientId, status, includeArchived, 
   if (clientId && clientId !== 'all') eq('j.client_id = ?', clientId);
   if (status && status !== 'all') eq('j.status = ?', status);
   else if (!includeArchived && status !== 'all') where.push(`j.status <> 'archived'`);
+  // An archived client's jobs are hidden from general lists (still shown on that client's own page).
+  if (!includeArchived && !(clientId && clientId !== 'all')) where.push(`c.status <> 'archived'`);
   if (search) {
     params.push(likePattern(search));
     const p = `$${params.length}`;

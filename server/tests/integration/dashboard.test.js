@@ -54,7 +54,7 @@ describe('dashboard', () => {
     expect(res.status).toBe(200);
     const { metrics, chart, recentJobs, recentFiles } = body(res);
     expect(metrics).toEqual({
-      clients: { value: 1, hint: '2 added in 30 days' },
+      clients: { value: 1, hint: '1 added in 30 days' }, // archived clients are not counted (QA bug #4)
       activeJobs: { value: 1, hint: '1 on hold' },
       openTasks: { value: 1, hint: '1 in review' },
       files: { value: 2, hint: '2 generated this week' },

@@ -135,11 +135,11 @@ export async function metricCounts(tx) {
   const { rows } = await tx.query(`
     select
       (select count(*)::int from public.ai_workspace_clients where status <> 'archived') as clients,
-      (select count(*)::int from public.ai_workspace_clients where created_at >= now() - interval '30 days') as clients_30d,
-      (select count(*)::int from public.ai_workspace_jobs where status = 'active') as active_jobs,
-      (select count(*)::int from public.ai_workspace_jobs where status = 'on_hold') as on_hold_jobs,
-      (select count(*)::int from public.ai_workspace_tasks where status <> 'done' and archived_at is null) as open_tasks,
-      (select count(*)::int from public.ai_workspace_tasks where status = 'review' and archived_at is null) as review_tasks,
+      (select count(*)::int from public.ai_workspace_clients where status <> 'archived' and created_at >= now() - interval '30 days') as clients_30d,
+      (select count(*)::int from public.ai_workspace_jobs where status = 'active' and client_id in (select id from public.ai_workspace_clients where status <> 'archived')) as active_jobs,
+      (select count(*)::int from public.ai_workspace_jobs where status = 'on_hold' and client_id in (select id from public.ai_workspace_clients where status <> 'archived')) as on_hold_jobs,
+      (select count(*)::int from public.ai_workspace_tasks where status <> 'done' and archived_at is null and client_id in (select id from public.ai_workspace_clients where status <> 'archived')) as open_tasks,
+      (select count(*)::int from public.ai_workspace_tasks where status = 'review' and archived_at is null and client_id in (select id from public.ai_workspace_clients where status <> 'archived')) as review_tasks,
       (select count(*)::int from public.ai_workspace_files where archived_at is null) as files,
       (select count(*)::int from public.ai_workspace_files
         where archived_at is null and source_type = 'generated' and created_at >= now() - interval '7 days') as generated_7d,

@@ -286,5 +286,8 @@ describe('manual revisions of sectioned (advertising) outputs', () => {
     expect(rows[0].sections ?? []).toEqual([]);
     const dto = (await request(app).get(`/api/v1/outputs/${outputId}`).set(A)).body.data;
     expect(JSON.stringify(dto)).toContain('Completely rewritten copy');
+    // and the version is shown as plain text, not as "0 sections" with an empty body (QA bug #1)
+    const versions = (await request(app).get(`/api/v1/outputs/${outputId}/versions`).set(A)).body.data;
+    expect(versions.find((v) => v.versionNumber === 2).sections).toBeNull();
   });
 });
