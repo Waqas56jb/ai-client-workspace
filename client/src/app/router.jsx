@@ -8,6 +8,8 @@ import { ErrorState, Page } from '@/components/ui';
 const LoginPage = lazy(() => import('@/features/auth/LoginPage'));
 const ForgotPasswordPage = lazy(() => import('@/features/auth/ForgotPasswordPage'));
 const DashboardPage = lazy(() => import('@/features/dashboard/DashboardPage'));
+const AssistantPage = lazy(() => import('@/features/assistant/AssistantPage'));
+const ChatHistoryPage = lazy(() => import('@/features/history/ChatHistoryPage'));
 const ClientsPage = lazy(() => import('@/features/clients/ClientsPage'));
 const ClientFormPage = lazy(() => import('@/features/clients/ClientFormPage'));
 const ClientDetailPage = lazy(() => import('@/features/clients/ClientDetailPage'));
@@ -74,6 +76,9 @@ export const router = createBrowserRouter([
             children: [
               { path: '/', element: <Navigate to="/dashboard" replace /> },
               { path: '/dashboard', element: s(<DashboardPage />) },
+              { path: '/assistant', element: s(<AssistantPage />) },
+              { path: '/assistant/c/:conversationId', element: s(<AssistantPage />) },
+              { path: '/history', element: s(<ChatHistoryPage />) },
               { path: '/clients', element: s(<ClientsPage />) },
               { path: '/clients/new', element: s(<ClientFormPage />) },
               { path: '/clients/:clientId', element: s(<ClientDetailPage tab="overview" />) },

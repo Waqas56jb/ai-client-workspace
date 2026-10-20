@@ -49,7 +49,21 @@ function SectionBlock({ section, onCopy }) {
  * Rich text output card: content or structured sections, inline editing that
  * saves a new draft revision, regenerate, approve, TXT export and history.
  */
-export function TextOutputPanel({ output, selected, onSelect, onShowDetails }) {
+/** One-click follow-ups for a written result (sent as a new message in the same chat). */
+export const QUICK_ACTIONS = [
+  { id: 'shorter', label: 'Shorter', prompt: 'Make the message above shorter. Keep every key fact.' },
+  { id: 'persuasive', label: 'More persuasive', prompt: 'Rewrite the message above to be more persuasive and sales-focused, without being pushy.' },
+  { id: 'formal', label: 'More formal', prompt: 'Rewrite the message above in a more formal tone.' },
+  { id: 'casual', label: 'Casual', prompt: 'Rewrite the message above in a casual tone, in plain English that is very easy to understand.' },
+  { id: 'assertive', label: 'More assertive', prompt: 'Make the message above more assertive.' },
+  { id: 'diplomatic', label: 'More diplomatic', prompt: 'Make the message above more diplomatic.' },
+  { id: 'alternatives', label: '2 other versions', prompt: 'Give me 2 alternative versions of the message above.' },
+  { id: 'explain', label: 'Explain changes', prompt: 'Briefly explain why the changes in the message above were made.' },
+  { id: 'sms', label: 'As SMS', prompt: 'Shorten the message above so it works as an SMS.', format: 'sms' },
+  { id: 'whatsapp', label: 'As WhatsApp', prompt: 'Rewrite the message above as a WhatsApp message.', format: 'whatsapp' },
+];
+
+export function TextOutputPanel({ output, selected, onSelect, onShowDetails, onQuickAction }) {
   const v = output.currentVersion;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -101,15 +115,15 @@ export function TextOutputPanel({ output, selected, onSelect, onShowDetails }) {
           </div>
         </div>
         <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-          <Tooltip content="Copy all">
-            <Button size="icon-sm" variant="ghost" icon={Copy} onClick={() => copy()} aria-label="Copy all text" />
-          </Tooltip>
-          <Tooltip content="Download .txt">
-            <Button size="icon-sm" variant="ghost" icon={Download} onClick={() => download()} aria-label="Download as TXT" />
-          </Tooltip>
-          <Tooltip content="Version history">
-            <Button size="icon-sm" variant="ghost" icon={History} onClick={() => setHistoryOpen(true)} aria-label="View previous versions" />
-          </Tooltip>
+          <Button size="xs" variant="ghost" icon={Copy} onClick={() => copy()} aria-label="Copy all text">
+            Copy
+          </Button>
+          <Button size="xs" variant="ghost" icon={Download} onClick={() => download()} aria-label="Download as TXT">
+            Download
+          </Button>
+          <Button size="xs" variant="ghost" icon={History} onClick={() => setHistoryOpen(true)} aria-label="View previous versions">
+            History
+          </Button>
           {onShowDetails && (
             <Tooltip content="Details">
               <Button size="icon-sm" variant="ghost" icon={PanelRight} onClick={() => onShowDetails(output.id)} aria-label="Show output details" />
@@ -158,6 +172,23 @@ export function TextOutputPanel({ output, selected, onSelect, onShowDetails }) {
           </div>
         )}
         {!editing && <MissingInfoCallout missing={v?.missing} />}
+        {!editing && onQuickAction && output.tool === 'writing' && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <p className="mb-1.5 text-[12px] font-semibold text-muted">Quick changes</p>
+            <div className="flex flex-wrap gap-1.5">
+              {QUICK_ACTIONS.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => onQuickAction(output, a)}
+                  className="h-8 rounded-full border border-line bg-surface px-3 text-[12.5px] font-medium text-ink transition-colors hover:border-brand/50 hover:bg-brand-soft hover:text-brand focus-ring"
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {!editing && (

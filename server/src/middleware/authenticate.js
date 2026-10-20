@@ -29,7 +29,7 @@ let verifyToken = async (token) => {
 
 export function setTokenVerifier(fn) {
   verifyToken = fn;
-  cache.clear();
+  clearAuthCache();
 }
 
 async function verifyCached(token) {
@@ -62,23 +62,16 @@ export async function authenticate(req, _res, next) {
     if (!authUser?.id) throw unauthorized('Your session has expired or is invalid. Please sign in again.');
 
     // RLS: the profile row is only visible if the user is an ACTIVE member.
-    const profile = await getDatabase().withUser(authUser.id, async (tx) => {
-      const { rows } = await tx.query(
-        `select id, display_name, email, role_title, avatar_colour, is_active
-           from public.ai_workspace_users where id = $1`,
-        [authUser.id],
-      );
-      const row = rows[0];
-      if (row?.is_active) {
-        const last = lastSeenWrite.get(row.id) || 0;
-        if (Date.now() - last > 5 * 60_000) {
-          lastSeenWrite.set(row.id, Date.now());
-          await tx.query('update public.ai_workspace_users set last_active_at = now() where id = $1', [row.id]);
-        }
-      }
-      return row;
-    });
+    // Cached for 30 s (like the token check) — saves a database transaction per request;
+    // a deactivated member loses access within that window.
+    const cachedProfile = profiles.get(authUser.id);
+    const profile = cachedProfile && cachedProfile.expires > Date.now() ? cachedProfile.row : await loadProfile(authUser.id);
+    if (profile?.is_active && !(cachedProfile?.expires > Date.now())) {
+      profiles.set(authUser.id, { row: profile, expires: Date.now() + CACHE_TTL_MS });
+      if (profiles.size > 500) profiles.delete(profiles.keys().next().value);
+    }
     if (!profile || !profile.is_active) {
+      profiles.delete(authUser.id);
       throw forbidden('This account is not an active member of the StudioFlow workspace.');
     }
 
@@ -94,4 +87,35 @@ export async function authenticate(req, _res, next) {
   } catch (err) {
     next(err);
   }
+}
+
+const profiles = new Map();
+
+/** Forgets cached sign-ins and memberships (tests; profile changes take effect at once). */
+export function clearAuthCache(userId) {
+  if (userId) profiles.delete(userId);
+  else {
+    profiles.clear();
+    cache.clear();
+  }
+}
+
+/** Loads the member profile (null when not visible = not an active member) and records activity every 5 min. */
+function loadProfile(userId) {
+  return getDatabase().withUser(userId, async (tx) => {
+    const { rows } = await tx.query(
+      `select id, display_name, email, role_title, avatar_colour, is_active
+         from public.ai_workspace_users where id = $1`,
+      [userId],
+    );
+    const row = rows[0];
+    if (row?.is_active) {
+      const last = lastSeenWrite.get(row.id) || 0;
+      if (Date.now() - last > 5 * 60_000) {
+        lastSeenWrite.set(row.id, Date.now());
+        await tx.query('update public.ai_workspace_users set last_active_at = now() where id = $1', [row.id]);
+      }
+    }
+    return row;
+  });
 }

@@ -7,7 +7,7 @@ import { OutputReference, TextOutputPanel } from './TextOutputPanel';
  * Outputs that appear again in a later message render as a compact reference
  * here, so the latest state is shown once.
  */
-export function MessageOutputs({ message, outputsById, latestMessageFor, loading, selectedOutputId, onSelect, onShowDetails, onEditImage, presetsById }) {
+export function MessageOutputs({ message, outputsById, latestMessageFor, loading, selectedOutputId, onSelect, onShowDetails, onEditImage, presetsById, onQuickAction }) {
   const outputs = message.outputIds.map((id) => outputsById[id]).filter(Boolean);
   if (!outputs.length) {
     return loading ? (
@@ -29,7 +29,7 @@ export function MessageOutputs({ message, outputsById, latestMessageFor, loading
       ))}
       {images.length > 0 && <ImageGallery outputs={images} selectedOutputId={selectedOutputId} onSelect={onSelect} onShowDetails={onShowDetails} onEditImage={onEditImage} presetsById={presetsById} />}
       {texts.map((o) => (
-        <TextOutputPanel key={o.id} output={o} selected={selectedOutputId === o.id} onSelect={onSelect} onShowDetails={onShowDetails} />
+        <TextOutputPanel key={o.id} output={o} selected={selectedOutputId === o.id} onSelect={onSelect} onShowDetails={onShowDetails} onQuickAction={onQuickAction} />
       ))}
     </div>
   );

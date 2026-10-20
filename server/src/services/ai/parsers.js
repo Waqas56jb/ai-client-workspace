@@ -55,8 +55,11 @@ const clip = (s, n) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 export function deriveWritingTitle(content, format) {
   const lines = String(content || '').split('\n').map((l) => l.trim()).filter(Boolean);
   const subject = lines.find((l) => /^subject\s*:/i.test(l));
-  let base = subject ? subject.replace(/^subject\s*:\s*/i, '') : lines[0] || 'Draft';
-  base = base.replace(/^#+\s*/, '').replace(/[*_]/g, '').trim() || 'Draft';
+  // Without a subject line, skip the greeting ("Hi John,") and use the first real sentence.
+  const isGreeting = (l) => /^(hi|hello|hey|dear|g'?day|good (morning|afternoon|evening))\b[^.!?]{0,40}[,!]?$/i.test(l);
+  const body = lines.find((l) => !isGreeting(l)) || lines[0] || 'Draft';
+  let base = subject ? subject.replace(/^subject\s*:\s*/i, '') : body.split(/(?<=[.!?])\s/)[0];
+  base = base.replace(/^#+\s*/, '').replace(/[*_]/g, '').replace(/[.,;:]+$/, '').trim() || 'Draft';
   const label = WRITING_FORMAT_LABELS[format];
   const suffix = label && format !== 'other' ? ` — ${label === 'Email' ? 'email' : label}` : '';
   return clip(clip(base, 60) + suffix, 160);

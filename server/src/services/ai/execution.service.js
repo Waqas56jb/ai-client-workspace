@@ -201,7 +201,8 @@ function replyFor(ctx, gen, outputIds) {
       : 'Listing generated from the supplied details.';
   }
   const label = WRITING_FORMAT_LABELS[options.format]?.toLowerCase() || 'draft';
-  return `Here is a ${label === 'other text' ? 'draft' : label} in ${client.name}’s voice.`;
+  const noun = label === 'other text' ? 'draft' : label;
+  return `Here is ${/^(e|sms|a|o|i|u)/i.test(noun) ? 'an' : 'a'} ${noun} in ${client.name}’s voice.`;
 }
 
 async function persist(tx, run, ctx, gen, model, startedAt) {
@@ -293,6 +294,9 @@ async function persist(tx, run, ctx, gen, model, startedAt) {
   // roll everything back so a retry cannot produce duplicate outputs.
   if (!succeeded) throw new AppError('RUN_SUPERSEDED', 'This AI request was interrupted before it finished.', 409);
   await runsRepo.touchConversation(tx, run.conversation_id, { toolType: run.tool_type, userId });
+  if (!ro.targetOutputId && gen.outputs[0]?.title) {
+    await runsRepo.titleConversationFromFirstOutput(tx, run.conversation_id, gen.outputs[0].title.replace(/ — (email|SMS|WhatsApp)$/i, ''), outputIds);
+  }
   await runsRepo.markTaskInProgress(tx, task.id, userId);
   const title = gen.outputs[0]?.title || 'output';
   await logActivity(tx, {

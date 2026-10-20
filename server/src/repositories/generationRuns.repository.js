@@ -305,3 +305,16 @@ export async function lastWritingFormat(tx, conversationId) {
   );
   return rows[0]?.format || null;
 }
+
+/**
+ * Gives a conversation the title of its first result (instead of the raw first
+ * prompt), so the chat history reads well. Later results never rename it.
+ */
+export async function titleConversationFromFirstOutput(tx, conversationId, title, newOutputIds) {
+  await tx.query(
+    `update public.ai_workspace_conversations c set title = left($2, 120)
+      where c.id = $1
+        and not exists (select 1 from public.ai_workspace_outputs o where o.conversation_id = $1 and not (o.id = any($3::uuid[])))`,
+    [conversationId, title, newOutputIds],
+  );
+}

@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Layers, MessageSquarePlus, Palette, X } from 'lucide-react';
-import { Button, ErrorState, Page, Sheet, Skeleton, Tabs, Tooltip } from '@/components/ui';
+import { ArrowLeft, ImageIcon, Layers, Mail, MessageSquarePlus, Palette, PanelRight, X } from 'lucide-react';
+import { Button, ErrorState, Page, Segmented, Sheet, Skeleton, Tabs, Tooltip } from '@/components/ui';
+import { ClientLogo } from '@/components/data-display';
 import {
   AdvertisingForm,
   BrandContextPanel,
@@ -47,7 +48,7 @@ import { detectFormat } from '@/services';
 import { useAuthStore } from '@/store/authStore';
 import { useUiStore } from '@/store/uiStore';
 import { ACCEPT_ATTR, IMAGE_ACCEPT_ATTR, TOOL_BY_ID, WRITING_FORMATS } from '@/lib/constants';
-import { createId, pluralize } from '@/lib/utils';
+import { cn, createId, pluralize } from '@/lib/utils';
 import { isMockMode } from '@/lib/config';
 
 const EMPTY_BY_TOOL = { writing: '', image: '', advertising: '', vehicle: '' };
@@ -146,6 +147,42 @@ export default function AiWorkspacePage() {
   return <Workspace key={task.id} task={task} client={client} />;
 }
 
+/**
+ * One AI Assistant chat: loads the conversation, its task and client, then
+ * renders the shared workspace in the simple "assistant" layout. `initialDraft`
+ * (from the start screen) is sent once as the first message.
+ */
+export function AssistantConversation({ conversationId, initialDraft, onNewChat }) {
+  const convQ = useConversation(conversationId);
+  const taskQ = useTask(convQ.data?.taskId);
+  const clientQ = useClient(convQ.data?.clientId); // loads alongside the task (the chat already knows its client)
+  usePageTitle(convQ.data ? `${convQ.data.title} · AI Assistant` : 'AI Assistant');
+
+  const error = convQ.error || taskQ.error || clientQ.error;
+  if (error) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6">
+        <ErrorState
+          title="This chat could not be opened"
+          error={error?.status === 404 ? { ...error, message: 'This chat no longer exists. Pick another one from your history or start a new chat.' } : error}
+          onRetry={() => (convQ.error ? convQ.refetch() : taskQ.error ? taskQ.refetch() : clientQ.refetch())}
+          action={<Button onClick={onNewChat}>New chat</Button>}
+        />
+      </div>
+    );
+  }
+  if (!convQ.data || !taskQ.data || !clientQ.data) {
+    return (
+      <div className="flex flex-1 flex-col gap-4 p-6" role="status" aria-label="Loading chat">
+        <Skeleton className="h-10 w-1/2" />
+        <Skeleton className="h-24 w-2/3" />
+        <Skeleton className="h-40 w-3/4" />
+      </div>
+    );
+  }
+  return <Workspace task={taskQ.data} client={clientQ.data} variant="assistant" fixedConversationId={conversationId} initialDraft={initialDraft} onNewChat={onNewChat} />;
+}
+
 function WorkspaceSkeleton() {
   return (
     <div className="flex h-[calc(100dvh-4rem)] flex-col" role="status" aria-label="Loading workspace">
@@ -192,20 +229,24 @@ function SidePanel({ title, onClose, children }) {
   );
 }
 
-function Workspace({ task, client }) {
+function Workspace({ task, client, variant = 'task', fixedConversationId = null, initialDraft = null, onNewChat }) {
   const job = task.job || { id: task.jobId, title: 'Job' };
+  const isAssistant = variant === 'assistant';
   const navigate = useNavigate();
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const [params, setParams] = useSearchParams();
 
-  // ── layout ──
+  // ── layout ── (the assistant keeps its details panel closed until asked, and has no task panel)
   const isXl = useMediaQuery('(min-width: 1280px)');
-  const panels = useUiStore((s) => s.workspacePanels);
-  const setPanel = useUiStore((s) => s.setWorkspacePanel);
+  const storedPanels = useUiStore((s) => s.workspacePanels);
+  const setStoredPanel = useUiStore((s) => s.setWorkspacePanel);
+  const [assistantPanels, setAssistantPanels] = useState({ left: false, right: false });
+  const panels = isAssistant ? assistantPanels : storedPanels;
+  const setPanel = isAssistant ? (side, open) => setAssistantPanels((p) => ({ ...p, [side]: open })) : setStoredPanel;
   const [sheet, setSheet] = useState(null);
   const [rightTab, setRightTab] = useState('output');
-  const leftOpen = isXl ? panels.left : sheet === 'left';
+  const leftOpen = isAssistant ? false : isXl ? panels.left : sheet === 'left';
   const rightOpen = isXl ? panels.right : sheet === 'right';
   const toggle = (side) => (isXl ? setPanel(side, !panels[side]) : setSheet((s) => (s === side ? null : side)));
 
@@ -226,14 +267,15 @@ function Workspace({ task, client }) {
   const imageOutputs = useMemo(() => (outputsQ.data || []).filter((o) => o.kind === 'image'), [outputsQ.data]);
 
   // ── tool + conversation selection (URL-driven) ──
-  const paramTool = isToolId(params.get('tool')) ? params.get('tool') : null;
-  const paramConv = params.get('conversation');
+  const [assistantTool, setAssistantTool] = useState(null);
+  const paramTool = isAssistant ? assistantTool : isToolId(params.get('tool')) ? params.get('tool') : null;
+  const paramConv = isAssistant ? fixedConversationId : params.get('conversation');
   const taskTool = isToolId(task.type) ? task.type : null;
   const explicitConv = paramConv ? conversations.find((c) => c.id === paramConv) || null : null;
   const preferredTool = paramTool || explicitConv?.tool || taskTool;
   const autoConv = !paramConv ? conversations.find((c) => !preferredTool || !c.tool || c.tool === preferredTool) || null : null;
   const selectedConv = explicitConv || autoConv;
-  const tool = paramTool || selectedConv?.tool || taskTool || null;
+  const tool = paramTool || selectedConv?.tool || taskTool || (isAssistant ? 'writing' : null);
   const toolMeta = TOOL_BY_ID[tool];
 
   const updateParams = useCallback(
@@ -253,6 +295,8 @@ function Workspace({ task, client }) {
   const switchTool = (id) => {
     // Advertising and vehicle requests are filled in through their form, so show it.
     if (id === 'advertising' || id === 'vehicle') setControlsOpen(true);
+    // In the assistant a chat can mix messages and images, so switching keeps the conversation.
+    if (isAssistant) return setAssistantTool(id);
     const patch = { tool: id };
     if (selectedConv?.tool && selectedConv.tool !== id) patch.conversation = null;
     updateParams(patch);
@@ -332,7 +376,11 @@ function Workspace({ task, client }) {
       setPrompts((p) => ({ ...p, [vars.tool]: '' }));
       setAttachments((a) => ({ ...a, [vars.tool]: [] }));
       if (vars.options?.editOutputId) setForms((f) => ({ ...f, image: { ...f.image, editOutputId: null } }));
-      if (d?.conversation?.id && d.conversation.id !== selectedConv?.id) updateParams({ conversation: d.conversation.id, tool: vars.tool });
+      if (d?.conversation?.id && d.conversation.id !== selectedConv?.id) {
+        if (isAssistant) navigate(`/assistant/c/${d.conversation.id}`, { replace: true });
+        else updateParams({ conversation: d.conversation.id, tool: vars.tool });
+      }
+      if (isAssistant) qc.invalidateQueries({ queryKey: ['chat-history'] });
       if (d?.outputs?.length) setSelectedOutputId(d.outputs[0].id);
       if (d?.assistantMessage?.status === 'error') toast.error(isMockMode ? 'The simulated AI service failed — use Retry on the message.' : d.assistantMessage.content || 'The AI request failed — use Retry on the message.');
     },
@@ -366,6 +414,28 @@ function Workspace({ task, client }) {
   });
 
   const busy = sendMut.isPending || retryMut.isPending || clarifyMut.isPending || newConvMut.isPending;
+
+  // ── assistant: the first message typed on the start screen is sent once, then forgotten ──
+  const draftSent = useRef(false);
+  useEffect(() => {
+    if (!isAssistant || !initialDraft || draftSent.current || selectedConv?.id !== fixedConversationId) return;
+    draftSent.current = true;
+    if (initialDraft.tool) setAssistantTool(initialDraft.tool);
+    if (initialDraft.tool === 'image' && initialDraft.options?.presetId) {
+      imageTouched.current = true;
+      setForms((f) => ({ ...f, image: { ...f.image, ...initialDraft.options } }));
+    }
+    if (initialDraft.tool === 'writing') setForms((f) => ({ ...f, writing: { ...f.writing, ...initialDraft.options } }));
+    navigate('.', { replace: true, state: null });
+    sendMut.mutate({ taskId: task.id, conversationId: fixedConversationId, ...initialDraft });
+  }, [isAssistant, initialDraft, selectedConv?.id, fixedConversationId, task.id, navigate, sendMut]);
+
+  // ── quick changes on a text result: sent as a follow-up in the same chat (the AI remembers the draft) ──
+  const quickAction = (output, action) => {
+    if (busy) return;
+    const format = action.format || (['email', 'sms', 'whatsapp', 'other'].includes(output.format) ? output.format : undefined);
+    sendMut.mutate({ taskId: task.id, conversationId: selectedConv?.id, tool: 'writing', prompt: action.prompt, options: format ? { format } : {} });
+  };
   const form = tool ? forms[tool] : null;
   const prompt = tool ? prompts[tool] : '';
   const toolAttachments = tool ? attachments[tool] : [];
@@ -497,6 +567,7 @@ function Workspace({ task, client }) {
       onShowDetails={showDetails}
       onEditImage={editImage}
       presetsById={presetsById}
+      onQuickAction={busy ? undefined : quickAction}
     />
   );
 
@@ -542,7 +613,34 @@ function Workspace({ task, client }) {
 
   return (
     <div className="flex h-[calc(100dvh-4rem)] min-h-[480px] w-full flex-col overflow-hidden">
-      <ContextHeader task={task} client={client} job={job} leftOpen={leftOpen} rightOpen={rightOpen} onToggleLeft={() => toggle('left')} onToggleRight={() => toggle('right')} />
+      {isAssistant ? (
+        <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-surface px-4 py-2.5">
+          <ClientLogo client={client} size="sm" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-semibold leading-5 text-ink">{selectedConv?.title || 'New chat'}</p>
+            <p className="truncate text-[12.5px] leading-4 text-muted">
+              {client.name} · only this client’s brand details are used
+            </p>
+          </div>
+          <Segmented
+            ariaLabel="What do you need"
+            value={tool}
+            onChange={(id) => !busy && switchTool(id)}
+            options={[
+              { value: 'writing', label: 'Write', icon: Mail },
+              { value: 'image', label: 'Image', icon: ImageIcon },
+            ]}
+          />
+          <Button size="sm" variant={rightOpen ? 'secondary' : 'ghost'} icon={PanelRight} onClick={() => toggle('right')} aria-pressed={rightOpen}>
+            Details
+          </Button>
+          <Button size="sm" variant="primary" icon={MessageSquarePlus} onClick={onNewChat}>
+            New chat
+          </Button>
+        </header>
+      ) : (
+        <ContextHeader task={task} client={client} job={job} leftOpen={leftOpen} rightOpen={rightOpen} onToggleLeft={() => toggle('left')} onToggleRight={() => toggle('right')} />
+      )}
 
       <div className="flex min-h-0 flex-1">
         {isXl && leftOpen && (
@@ -552,13 +650,15 @@ function Workspace({ task, client }) {
         )}
 
         <section className="flex min-w-0 flex-1 flex-col bg-canvas" aria-label="AI conversation">
-          <div className="shrink-0 border-b border-line bg-surface px-3 py-2 sm:px-5">
-            <ToolSelector value={tool} onChange={switchTool} inactive={inactive} disabled={busy} />
-          </div>
+          {!isAssistant && (
+            <div className="shrink-0 border-b border-line bg-surface px-3 py-2 sm:px-5">
+              <ToolSelector value={tool} onChange={switchTool} inactive={inactive} disabled={busy} />
+            </div>
+          )}
 
           {tool ? (
             <>
-              <div className="flex shrink-0 items-center gap-2 border-b border-line bg-surface/70 px-3 py-1.5 sm:px-5">
+              <div className={cn('flex shrink-0 items-center gap-2 border-b border-line bg-surface/70 px-3 py-1.5 sm:px-5', isAssistant && 'hidden')}>
                 <ToolIcon tool={tool} size="xs" />
                 <p className="min-w-0 flex-1 truncate text-[12.5px] text-muted">
                   <span className="font-semibold text-ink">{selectedConv ? selectedConv.title : 'New conversation'}</span>

@@ -150,3 +150,22 @@ describe('chat history', () => {
     expect((await request(app).get('/api/v1/conversations').set(authHeader(USERS.outsider))).status).toBe(403);
   });
 });
+
+describe('readable titles', () => {
+  it('a chat is named after its first result, skipping the greeting (no subject lines any more)', async () => {
+    const { taskId } = (await session(ids.alpha)).body.data;
+    aiLimiter.resetKey(`user:${USERS.amelia.id}`);
+    reply = () => 'Hi Sam,\n\nYour campaign report is ready to review. Let me know a good time to talk.\n\nKind regards,\nAlpha';
+    const r = await write({ taskId, prompt: 'hey can u write sam an email re the report', options: { format: 'email' } });
+    const run = await poll(r.body.data.generationId);
+    expect(run.outputs[0].title).toBe('Your campaign report is ready to review — email');
+    const conv = (await request(app).get(`/api/v1/conversations/${r.body.data.conversation.id}`).set(A)).body.data;
+    expect(conv.title).toBe('Your campaign report is ready to review');
+    // a follow-up result does not rename the chat
+    aiLimiter.resetKey(`user:${USERS.amelia.id}`);
+    reply = () => 'Hi Sam,\n\nQuick note: the report is ready.\n\nAlpha';
+    const f = await write({ taskId, conversationId: conv.id, prompt: 'shorter' });
+    await poll(f.body.data.generationId);
+    expect((await request(app).get(`/api/v1/conversations/${conv.id}`).set(A)).body.data.title).toBe('Your campaign report is ready to review');
+  });
+});

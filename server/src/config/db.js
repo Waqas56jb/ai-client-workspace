@@ -33,6 +33,8 @@ function poolConfig() {
   };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function createPgDatabase() {
   const pool = new pg.Pool(poolConfig());
   pool.on('error', () => {
@@ -42,8 +44,7 @@ export function createPgDatabase() {
   async function run(fn, setup) {
     const client = await pool.connect();
     try {
-      await client.query('begin');
-      await setup(client);
+      await setup(client); // starts the transaction (and scopes it) in one round trip
       const result = await fn({ query: (sql, params) => client.query(sql, params) });
       await client.query('commit');
       return result;
@@ -58,24 +59,27 @@ export function createPgDatabase() {
   return {
     /** Run `fn(tx)` as an authenticated workspace user (RLS enforced). */
     withUser(userId, fn) {
-      return run(fn, async (c) => {
-        const claims = JSON.stringify({ sub: userId, role: 'authenticated' });
-        await c.query(
-          `select set_config('request.jwt.claim.sub', $1, true),
-                  set_config('request.jwt.claims', $2, true),
+      // The id comes from a verified token; it is still checked to be a plain UUID because it is
+      // inlined so that begin + claims + role cost ONE network round trip (simple-query protocol).
+      if (!UUID_RE.test(String(userId))) throw new Error('withUser requires a UUID user id');
+      const claims = JSON.stringify({ sub: userId, role: 'authenticated' });
+      return run(fn, (c) =>
+        c.query(
+          `begin;
+           select set_config('request.jwt.claim.sub', '${userId}', true),
+                  set_config('request.jwt.claims', '${claims}', true),
                   set_config('request.jwt.claim.role', 'authenticated', true),
-                  set_config('ai_workspace.via_api', 'on', true)`,
-          [userId, claims],
-        );
-        await c.query('set local role authenticated');
-      });
+                  set_config('ai_workspace.via_api', 'on', true);
+           set local role authenticated`,
+        ),
+      );
     },
     /**
      * Privileged path for controlled server operations only (membership lookup
      * during authentication, readiness checks). Never used for user data writes.
      */
     withSystem(fn) {
-      return run(fn, async () => {});
+      return run(fn, (c) => c.query('begin'));
     },
     async ping() {
       const c = await pool.connect();

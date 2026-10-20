@@ -3,6 +3,7 @@ import { ACTIVITY } from '../constants/domain.js';
 import { logActivity } from '../repositories/activity.repository.js';
 import * as repo from '../repositories/users.repository.js';
 import { forbidden, notFound } from '../utils/errors.js';
+import { clearAuthCache } from '../middleware/authenticate.js';
 
 /** Team members (all, or filtered by status). */
 export function listUsers(userId, query = {}) {
@@ -24,6 +25,7 @@ export function getUser(userId, targetId) {
  */
 export function updateProfile(userId, targetId, body) {
   if (targetId !== userId) return Promise.reject(forbidden('You can only update your own profile.'));
+  clearAuthCache(userId); // the signed-in profile (name, role) is cached for 30 s
   return getDatabase().withUser(userId, async (tx) => {
     if (!(await repo.updateProfile(tx, userId, body))) throw notFound('Team member');
     const user = await repo.findUser(tx, userId);
