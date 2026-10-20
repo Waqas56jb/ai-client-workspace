@@ -8,6 +8,7 @@ import { ContextPath, FileThumb } from '@/components/data-display';
 import { useFiles, useServiceMutation } from '@/hooks';
 import { fileService, validateUpload } from '@/services';
 import { ACCEPT_ATTR } from '@/lib/constants';
+import { config } from '@/lib/config';
 import { cn, formatBytes, formatDate, matches } from '@/lib/utils';
 import { STORAGE_INFO, StorageBadge, fileTypeLabel } from './helpers';
 import { isMockMode } from '@/lib/config';
@@ -63,7 +64,7 @@ function Dropzone({ onFiles, uploading }) {
       </span>
       <div>
         <p className="text-[14px] font-medium text-ink">{over ? 'Drop to upload' : 'Drag reference files here'}</p>
-        <p className="mt-0.5 text-xs text-muted">Images (PNG, JPG, WebP, GIF, SVG), PDF, Word, Excel, CSV or text · up to 8 MB each</p>
+        <p className="mt-0.5 text-xs text-muted">Images (PNG, JPG, WebP, GIF), PDF, Word, Excel, CSV or text · up to {formatBytes(config.maxUploadBytes)} each</p>
       </div>
       <Button variant="primary" size="sm" icon={Upload} loading={uploading} onClick={() => input.current?.click()}>
         {uploading ? 'Uploading…' : 'Choose files'}

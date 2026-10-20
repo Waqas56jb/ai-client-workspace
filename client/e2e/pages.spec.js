@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { closeDb, createQaClient, createQaJob, createQaTask, expectNoHorizontalOverflow, get, login, watchPage } from './helpers.js';
+import { closeDb, createQaClient, createQaJob, createQaTask, expectNoHorizontalOverflow, get, login, post, watchPage } from './helpers.js';
 
 /**
  * Opens every route directly (deep link) with real records at four viewports.
@@ -24,7 +24,9 @@ test.beforeAll(async ({ browser }) => {
   const task = await createQaTask(client.id, job.id, 'E2E Pages Task', 'writing');
   const file = (await get('/files', { query: { limit: 1 } })).data?.[0];
   const preset = (await get('/image-presets')).data[0];
-  ids = { client: client.id, job: job.id, task: task.id, file: file?.id, preset: preset.id };
+  const session = (await post('/assistant/session', { clientId: client.id })).data;
+  const chat = (await post(`/tasks/${session.taskId}/conversations`, { tool: 'writing', title: 'E2E chat with a fairly long title to check wrapping' })).data;
+  ids = { client: client.id, job: job.id, task: task.id, file: file?.id, preset: preset.id, chat: chat.id };
   const page = await browser.newPage({ storageState: { cookies: [], origins: [] } });
   await login(page, 'QA_MEMBER_A');
   fs.mkdirSync(SHOTS, { recursive: true });
@@ -35,6 +37,7 @@ test.afterAll(closeDb);
 test.use({ storageState: STATE });
 
 const ROUTES = () => [
+  '/assistant', `/assistant/c/${ids.chat}`, '/history',
   '/dashboard', '/clients', '/clients/new', `/clients/${ids.client}`, `/clients/${ids.client}/edit`, `/clients/${ids.client}/jobs`,
   `/clients/${ids.client}/brand`, `/clients/${ids.client}/reference-files`, `/clients/${ids.client}/activity`,
   '/jobs', '/jobs/new', `/jobs/${ids.job}`, `/jobs/${ids.job}/edit`,

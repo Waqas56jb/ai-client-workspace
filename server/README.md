@@ -181,7 +181,8 @@ The frontend then runs with `VITE_DATA_MODE=api` and `VITE_API_BASE_URL=http://l
   6. Record requested, generated and actual sizes.
 - **Client isolation:**
   - Context is resolved **on the server** from the task → job → client records. The frontend never supplies branding.
-  - Only that client's profile (filtered per tool), its job and task, the saved tool instructions, the selected preset, recent history, and explicitly attached same-client files are sent.
+  - Only that client's profile (filtered per tool), its job and task, the saved tool instructions, the selected preset, the conversation memory, and explicitly attached same-client files are sent.
+  - **Conversation memory:** the last 20 exchanges (40 messages) of the same conversation, including the text of drafts the AI produced, within a 30,000-character budget (newest kept). A follow-up keeps the format already confirmed in that conversation.
   - Reference documents and user text are wrapped as **untrusted data** and can't override the instructions.
 - **Vehicle descriptions:** missing facts are computed on the server and never invented. The client's approved warranty wording is used verbatim.
 - **Limitations:** exact on-image typography and perfect preservation of details when editing arbitrary photos are not guaranteed. Exact brand text is best added through the compositing step.
@@ -200,7 +201,8 @@ Base path: `/api/v1`. Success responses look like `{ success: true, data, messag
 | Clients | `GET/POST /clients` · `GET/PATCH/DELETE /clients/:id` (DELETE = archive) · `GET/PATCH /clients/:id/brand` · `POST /clients/:id/archive` · `/restore` · `GET /clients/:id/deletion-impact` · `/reference-files` · `/activity` |
 | Jobs | `GET/POST /jobs` · `GET/PATCH /jobs/:id` · `POST /jobs/:id/archive` · `GET /jobs/:id/tasks` · `/files` · `/activity` |
 | Tasks | `GET/POST /tasks` · `GET/PATCH /tasks/:id` · `POST /tasks/:id/archive` · `GET /tasks/:id/files` · `/activity` |
-| Conversations | `GET/POST /tasks/:taskId/conversations` · `GET/PATCH /conversations/:id` · `GET/POST /conversations/:id/messages` |
+| Conversations | `GET /conversations?search&clientId&tool&from&to&page&limit` (workspace chat history; `from`/`to` = ISO instants, matched against message dates) · `GET/POST /tasks/:taskId/conversations` · `GET/PATCH /conversations/:id` · `GET/POST /conversations/:id/messages` |
+| AI Assistant | `POST /assistant/session {clientId}` → `{ clientId, jobId, taskId }` (the client's "AI Assistant" job/task, created once) |
 | AI | `POST /ai/writing/generate` · `/ai/writing/revise` · `/ai/advertising/generate` · `/ai/vehicle-description/generate` · `/ai/images/generate` · `/ai/images/edit` · `GET /ai/generations/:id` · `POST /ai/generations/:id/retry` · `POST /ai/outputs/:id/regenerate` · `POST /ai/preview-request` |
 | Files | `GET /files` · `POST /files/upload` (multipart) · `GET/PATCH /files/:id` · `GET /files/:id/download` · `/preview` · `POST /files/:id/archive` · `GET /files/:id/versions` · `POST /files/:id/versions/:vid/approve` |
 | Outputs & versions | `GET /outputs` · `GET/PATCH /outputs/:id` · `GET /outputs/:id/versions` · `POST /outputs/:id/revisions` · `GET /outputs/:id/versions/:vid` · `POST …/restore` · `GET …/download` |

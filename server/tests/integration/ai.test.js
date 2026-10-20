@@ -265,10 +265,16 @@ describe('images', () => {
     expect(img).toMatchObject({ requestedWidth: 1080, requestedHeight: 1350, actualWidth: 1080, actualHeight: 1350, generatedWidth: gw, generatedHeight: gh, resizeStrategy: 'cover', model: 'gpt-image-2' });
     expect(img.previewUrl).toMatch(/^https:\/\/storage\.test\//);
 
-    const finals = [...storage.objects.entries()].filter(([p]) => p.includes('/versions/'));
+    const finals = [...storage.objects.entries()].filter(([p]) => p.includes('/versions/') && !p.endsWith('/preview.jpg'));
     const originals = [...storage.objects.entries()].filter(([p]) => p.includes('/generated/') && p.includes('original'));
     expect(finals).toHaveLength(1);
     expect(originals).toHaveLength(1);
+    // a small JPEG preview is stored for the chat/thumbnails; downloads keep the exact PNG
+    const previews = [...storage.objects.entries()].filter(([p]) => p.endsWith('/preview.jpg'));
+    expect(previews).toHaveLength(1);
+    const pm = await sharp(previews[0][1].buf).metadata();
+    expect(pm.format).toBe('jpeg');
+    expect(Math.max(pm.width, pm.height)).toBeLessThanOrEqual(960);
     const fm = await sharp(finals[0][1].buf).metadata();
     expect([fm.width, fm.height, fm.format]).toEqual([1080, 1350, 'png']);
     const om = await sharp(originals[0][1].buf).metadata();

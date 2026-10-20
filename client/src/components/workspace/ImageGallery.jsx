@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Download, Eye, GitBranch, GitCompare, Info, PanelRight, RefreshCw, Wand } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Download, Eye, GitBranch, GitCompare, ImageOff, Info, Loader2, PanelRight, RefreshCw, Wand } from 'lucide-react';
 import { Badge, Button, Menu, Tooltip } from '@/components/ui';
 import { ApproveButton, ImagePreviewDialog, OutputHistoryDialog, RevisionDialog } from '@/components/approvals';
 import { versionImageSrc } from '@/lib/media';
@@ -14,6 +14,8 @@ function ImageTile({ output, selected, onSelect, onShowDetails, onEditImage, pre
   const img = v?.image;
   const src = useMemo(() => versionImageSrc(v), [v]);
   const [preview, setPreview] = useState(false);
+  const [loadState, setLoadState] = useState('loading'); // loading | ready | error
+  useEffect(() => setLoadState('loading'), [src]);
   const [meta, setMeta] = useState(false);
   const [revision, setRevision] = useState(false);
   const [history, setHistory] = useState(null);
@@ -25,7 +27,27 @@ function ImageTile({ output, selected, onSelect, onShowDetails, onEditImage, pre
       <div className="relative">
         <button type="button" onClick={() => { onSelect?.(output.id); setPreview(true); }} className="checkerboard block w-full focus-ring" aria-label={`Preview ${output.title}`}>
           <div className={cn('mx-auto flex items-center justify-center', single ? 'max-h-[420px]' : 'max-h-[300px]')} style={{ aspectRatio: ratio }}>
-            {src ? <img src={src} alt={output.title} className={cn('h-full w-full object-contain transition-opacity', regenerate.isPending && 'opacity-40')} /> : null}
+            {src ? (
+              <img
+                key={src}
+                src={src}
+                alt={output.title}
+                decoding="async"
+                onLoad={() => setLoadState('ready')}
+                onError={() => setLoadState('error')}
+                className={cn('h-full w-full object-contain transition-opacity duration-300', loadState !== 'ready' && 'opacity-0', regenerate.isPending && 'opacity-40')}
+              />
+            ) : null}
+            {src && loadState === 'loading' && (
+              <span className="absolute inset-0 flex items-center justify-center gap-2 text-[13px] font-medium text-muted">
+                <Loader2 size={18} className="animate-spin" aria-hidden /> Loading image…
+              </span>
+            )}
+            {(!src || loadState === 'error') && (
+              <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-4 text-center text-[13px] text-muted">
+                <ImageOff size={20} aria-hidden /> Preview not available — use Download to get the image.
+              </span>
+            )}
           </div>
         </button>
         <div className="pointer-events-none absolute left-2 top-2 flex flex-wrap gap-1">

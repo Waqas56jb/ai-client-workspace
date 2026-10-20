@@ -9,7 +9,8 @@ import * as approvalsRepo from '../repositories/approvals.repository.js';
 import { detectFile } from '../utils/fileDetection.js';
 import { AppError, badRequest, conflict, notFound } from '../utils/errors.js';
 import { clientSummary, iso, jobSummary, pageMeta, pagination, rangeInterval, taskSummary, userSummary } from '../utils/mappers.js';
-import { buildObjectPath, putObject, removeObjects, sha256, signedUrl } from './storage.service.js';
+import { buildObjectPath, makePreviewJpeg, putObject, removeObjects, sha256, signedUrl } from './storage.service.js';
+import { logger } from '../utils/logger.js';
 import { buildOutputDtos, displayFileName, signer, toVersionDto, versionText } from './output.service.js';
 
 /**
@@ -172,6 +173,7 @@ export async function uploadFile(user, file, input) {
   const checksum = sha256(file.buffer);
   const fileId = crypto.randomUUID();
   let uploadedPath = null;
+  let previewPath = null;
 
   try {
     return await getDatabase().withUser(user.id, async (tx) => {
@@ -179,6 +181,16 @@ export async function uploadFile(user, file, input) {
       const path = buildObjectPath({ kind: input.category === 'attachment' ? 'originals' : 'references', ...scope, fileId, fileName: displayName });
       await putObject(path, file.buffer, detected.mimeType);
       uploadedPath = path;
+      if (detected.category === 'image') {
+        // Small JPEG for fast thumbnails; the original is always what gets downloaded or sent to the AI.
+        try {
+          const candidate = buildObjectPath({ kind: input.category === 'attachment' ? 'originals' : 'references', ...scope, fileId, fileName: 'preview.jpg' });
+          await putObject(candidate, await makePreviewJpeg(file.buffer), 'image/jpeg');
+          previewPath = candidate;
+        } catch (e) {
+          logger.warn({ code: e?.code }, 'upload preview could not be created');
+        }
+      }
 
       await filesRepo.insertFile(tx, {
         id: fileId,
@@ -204,7 +216,7 @@ export async function uploadFile(user, file, input) {
         checksum,
         note: 'Original upload',
         userId: user.id,
-        metadata: { originalFileName: displayName },
+        metadata: { originalFileName: displayName, ...(previewPath ? { previewPath } : {}) },
       });
       await filesRepo.setCurrentFileVersion(tx, fileId, fv, user.id);
 
@@ -225,7 +237,7 @@ export async function uploadFile(user, file, input) {
       return fileDto(tx, fileId);
     });
   } catch (err) {
-    if (uploadedPath) await removeObjects([uploadedPath]);
+    if (uploadedPath) await removeObjects([uploadedPath, previewPath].filter(Boolean));
     throw err;
   }
 }

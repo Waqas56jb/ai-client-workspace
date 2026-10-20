@@ -95,3 +95,15 @@ export async function checkBucket() {
   const { data, error } = await getServiceClient().storage.getBucket(env.STORAGE_BUCKET);
   return { ok: !error && !!data, isPrivate: data ? data.public === false : null };
 }
+
+/** Small JPEG used for on-screen previews (downloads always use the exact original file). */
+export const PREVIEW_MAX_PX = 960;
+export async function makePreviewJpeg(buffer) {
+  const { default: sharp } = await import('sharp');
+  return sharp(buffer, { failOn: 'none' })
+    .rotate()
+    .resize({ width: PREVIEW_MAX_PX, height: PREVIEW_MAX_PX, fit: 'inside', withoutEnlargement: true })
+    .flatten({ background: '#ffffff' })
+    .jpeg({ quality: 80, mozjpeg: true })
+    .toBuffer();
+}

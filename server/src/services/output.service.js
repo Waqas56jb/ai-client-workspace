@@ -3,7 +3,7 @@ import sharp from 'sharp';
 import { AppError, badRequest, notFound } from '../utils/errors.js';
 import { iso, toolId, userSummary, clientSummary, jobSummary, taskSummary } from '../utils/mappers.js';
 import { TOOL_TO_DB, WRITING_FORMATS } from '../constants/domain.js';
-import { buildObjectPath, putObject, removeObjects, sha256, signedUrl } from './storage.service.js';
+import { buildObjectPath, makePreviewJpeg, putObject, removeObjects, sha256, signedUrl } from './storage.service.js';
 import { logger } from '../utils/logger.js';
 import * as outputsRepo from '../repositories/outputs.repository.js';
 import * as versionsRepo from '../repositories/versions.repository.js';
@@ -133,6 +133,16 @@ async function storeImageVersion(tx, { userId, scope, fileId, versionNumber, tit
       await putObject(originalPath, originalImage.buffer, originalImage.mimeType);
       uploaded.push(originalPath);
     }
+    // A small JPEG for fast on-screen previews; failure here never blocks saving the image.
+    let previewPath = null;
+    try {
+      const candidate = buildObjectPath({ kind: 'versions', ...scope, fileId, versionNumber, fileName: 'preview.jpg' });
+      await putObject(candidate, await makePreviewJpeg(finalImage.buffer), 'image/jpeg');
+      uploaded.push(candidate);
+      previewPath = candidate;
+    } catch (err) {
+      logger.warn({ code: err?.code }, 'image preview could not be created');
+    }
 
     const checksum = sha256(finalImage.buffer);
     const fileName = displayFileName(title, ext);
@@ -153,6 +163,7 @@ async function storeImageVersion(tx, { userId, scope, fileId, versionNumber, tit
         actualWidth: finalImage.width,
         actualHeight: finalImage.height,
         originalPath,
+        previewPath,
         originalMimeType: originalImage?.mimeType || null,
         originalWidth: originalImage?.width ?? null,
         originalHeight: originalImage?.height ?? null,
@@ -379,7 +390,7 @@ export async function toVersionDto(row, sign = signer()) {
     image = {
       ...pickImageMeta(row.image_meta || {}),
       fileVersionId: row.file_version_id || null,
-      previewUrl: await sign(row.fv_storage_path),
+      previewUrl: await sign(row.fv_metadata?.previewPath || row.fv_storage_path),
     };
   }
   return {

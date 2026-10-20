@@ -100,6 +100,9 @@ test('image: upload a photo and change it with a prompt → exact-size result', 
   await expect(page).toHaveURL(/\/assistant\/c\//, { timeout: 60_000 });
   const conversationId = page.url().split('/').pop();
   await expect(page.getByRole('button', { name: /approve/i }).first()).toBeVisible({ timeout: 240_000 });
+  // the picture itself shows (small JPEG preview), not an empty box
+  const img = page.locator('article[aria-label^="Image"] img').first();
+  await expect.poll(() => img.evaluate((el) => el.complete && el.naturalWidth), { timeout: 20_000 }).toBeGreaterThan(0);
   await page.screenshot({ path: `${SHOTS}/5-image.png` });
   const [run] = await dbRead(
     `select status, request_options -> 'attachmentIds' as att, output_metadata from public.ai_workspace_generation_runs where conversation_id = $1 order by started_at desc limit 1`,
@@ -113,4 +116,9 @@ test('image: upload a photo and change it with a prompt → exact-size result', 
   );
   expect(v.image_meta.actualWidth).toBe(v.image_meta.requestedWidth);
   expect(v.image_meta.actualHeight).toBe(v.image_meta.requestedHeight);
+  const [fv] = await dbRead(
+    `select fv.metadata ->> 'previewPath' as preview from public.ai_workspace_outputs o join public.ai_workspace_file_versions fv on fv.file_id = o.file_id where o.conversation_id = $1`,
+    [conversationId],
+  );
+  expect(fv.preview).toMatch(/preview\.jpg$/);
 });

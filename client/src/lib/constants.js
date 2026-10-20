@@ -135,7 +135,7 @@ export const ACCEPTED_UPLOADS = {
   'image/jpeg': 'image',
   'image/webp': 'image',
   'image/gif': 'image',
-  'image/svg+xml': 'image',
+  // SVG is not accepted: it can carry scripts, and the server rejects it.
   'application/pdf': 'document',
   'text/plain': 'text',
   'text/markdown': 'text',
@@ -146,7 +146,7 @@ export const ACCEPTED_UPLOADS = {
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'document',
 };
 export const ACCEPT_ATTR = Object.keys(ACCEPTED_UPLOADS).join(',');
-export const IMAGE_ACCEPT_ATTR = 'image/png,image/jpeg,image/webp,image/gif,image/svg+xml';
+export const IMAGE_ACCEPT_ATTR = 'image/png,image/jpeg,image/webp,image/gif';
 
 export const ACTIVITY_TYPES = {
   client_created: { label: 'Client created', tone: 'brand' },

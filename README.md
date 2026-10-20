@@ -9,6 +9,21 @@ ai-client-workspace/
 └── README.md
 ```
 
+## AI Assistant (main way to work)
+
+- **AI Assistant** (`/assistant`): pick a client, choose *Write a message* or *Create an image*, then paste a draft or describe what you need. No job or task set-up is needed. Each client gets an "AI Assistant" job automatically, so all the normal rules still apply: client isolation, versions, approvals and files.
+- **Writing:** the Writing tool follows the agency's email assistant brief.
+  - It uses natural Australian business English.
+  - If the format (email, SMS or WhatsApp) is unclear, it asks first.
+  - Tones are Persuasive, Professional, Formal and Casual.
+  - It adds no emojis, and no subject line unless asked.
+  - It never changes facts or prices.
+  - You can edit the brief in **AI Instructions → Writing & Editing**.
+- **Quick changes** under each written result: Shorter, More persuasive, More formal, Casual, More assertive, More diplomatic, 2 other versions, Explain changes, As SMS, As WhatsApp.
+- **Memory:** every request includes the last 20 exchanges (40 messages) of that chat, including the drafts the AI wrote, so follow-ups like "make it friendlier" work. Memory is per chat and per client; it is never shared across clients.
+- **Images:** create from a description, or upload a photo and say what to change. Results are exactly the chosen size. A small preview is shown in the chat; downloads are the full-size file.
+- **Chat history** (`/history`, plus the panel inside the assistant): every chat, grouped by day, with search by words, client, type, an exact day, or month and year.
+
 ## Quick start (local)
 
 ```bash

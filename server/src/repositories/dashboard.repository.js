@@ -101,6 +101,7 @@ export async function listFiles(tx, { clientId, jobId, taskId, sourceTypes, sort
   params.push(limit, offset);
   const { rows } = await tx.query(
     `select f.id, f.file_name, f.file_category, f.mime_type, f.file_size_bytes, f.output_id, f.source_type, f.description,
+            (select pv.metadata ->> 'previewPath' from public.ai_workspace_file_versions pv where pv.id = f.current_version_id) as preview_path,
             f.created_at, f.updated_at, f.created_by, f.job_id as f_job_id, f.task_id as f_task_id,
             ${clientColumns('c')}, ${jobColumns('j')}, ${taskColumns('t')}, ${userColumns('u', 'cu_')},
             o.id as out_id, o.title as out_title, o.output_kind as out_kind, o.tool_type as out_tool,
@@ -126,7 +127,7 @@ export async function listFiles(tx, { clientId, jobId, taskId, sourceTypes, sort
       limit $${params.length - 1} offset $${params.length}`,
     params,
   );
-  const previewPaths = new Map(rows.filter((r) => r.storage_path && r.file_category === 'image').map((r) => [r.id, r.storage_path]));
+  const previewPaths = new Map(rows.filter((r) => r.storage_path && r.file_category === 'image').map((r) => [r.id, r.preview_path || r.storage_path]));
   return { items: rows.map(mapFile), total: Number(rows[0]?.total_count || 0), previewPaths };
 }
 

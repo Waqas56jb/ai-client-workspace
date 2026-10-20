@@ -493,7 +493,7 @@ function Workspace({ task, client, variant = 'task', fixedConversationId = null,
     const room = MAX_ATTACHMENTS - attachments[forTool].length;
     if (files.length > room) toast.error(`You can attach up to ${MAX_ATTACHMENTS} files per message.`);
     for (const file of files.slice(0, Math.max(0, room))) {
-      const problem = validateUpload(file) || (forTool === 'image' && !file.type.startsWith('image/') ? `“${file.name}” is not an image. Reference images must be PNG, JPG, WebP, GIF or SVG.` : null);
+      const problem = validateUpload(file) || (forTool === 'image' && !file.type.startsWith('image/') ? `“${file.name}” is not an image. Reference images must be PNG, JPG or WebP.` : null);
       if (problem) {
         toast.error(problem);
         continue;
