@@ -46,7 +46,7 @@ describe('clients: create', () => {
       website: 'acme.test',
       address: '1 Main St',
       tone: 'Professional',
-      spelling: 'British English',
+      spelling: 'Australian English',
       primaryColor: '#6257E8',
       logoFileId: null,
     });
@@ -108,7 +108,7 @@ describe('clients: brand profile', () => {
     const res = await api('patch', `/clients/${acme.id}/brand`).send({ primaryColor: '#112233', tone: 'Warm', warranty: '3 years' });
     expect(res.status).toBe(200);
     const brand = (await api('get', `/clients/${acme.id}/brand`)).body.data;
-    expect(brand).toMatchObject({ primaryColor: '#112233', tone: 'Warm', spelling: 'British English', warranty: '3 years' });
+    expect(brand).toMatchObject({ primaryColor: '#112233', tone: 'Warm', spelling: 'Australian English', warranty: '3 years' });
   });
 
   it('rejects invalid colours', async () => {

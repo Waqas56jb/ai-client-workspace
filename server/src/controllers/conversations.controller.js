@@ -21,3 +21,12 @@ export const listMessages = handler(async (req, res) => {
 
 /** POST /conversations/:id/messages — plain user note, no AI generation. */
 export const addMessage = handler(async (req, res) => created(res, await service.addNote(req.user.id, req.params.id, req.body)));
+
+/** GET /conversations */
+export const listAll = handler(async (req, res) => {
+  const { items, meta } = await service.listAll(req.user.id, req.validatedQuery);
+  return ok(res, items, { meta });
+});
+
+/** POST /assistant/session */
+export const assistantSession = handler(async (req, res) => ok(res, await service.assistantSession(req.user, req.body.clientId)));

@@ -1,5 +1,6 @@
 import { getDatabase } from '../config/db.js';
-import { TOOL_TO_DB } from '../constants/domain.js';
+import { ACTIVITY, TOOL_TO_DB } from '../constants/domain.js';
+import { logActivity } from '../repositories/activity.repository.js';
 import { badRequest, conflict, notFound } from '../utils/errors.js';
 import * as convRepo from '../repositories/conversations.repository.js';
 import * as msgRepo from '../repositories/messages.repository.js';
@@ -129,5 +130,77 @@ export function addNote(userId, id, { content, attachmentIds = [] }) {
     if (unique.length) metadata.attachmentIds = unique;
     const row = await msgRepo.insertMessage(tx, { conversationId: id, role: 'user', content, messageType: 'prompt', metadata, userId });
     return msgRepo.toMessageDto(await msgRepo.getMessageRow(tx, row.id));
+  });
+}
+
+/**
+ * Workspace-wide chat history (newest activity first), filterable by text,
+ * client, tool and the date a message was written.
+ */
+export function listAll(userId, q) {
+  return db().withUser(userId, async (tx) => {
+    const limit = q.limit;
+    const { rows, total } = await convRepo.listAll(tx, {
+      search: q.search || undefined,
+      clientId: q.clientId,
+      toolType: q.tool ? TOOL_TO_DB[q.tool] : undefined,
+      from: q.from,
+      to: q.to,
+      includeArchived: q.includeArchived === 'true',
+      limit,
+      offset: (q.page - 1) * limit,
+    });
+    return { items: rows.map(convRepo.toHistoryDto), meta: { page: q.page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) } };
+  });
+}
+
+/** Name of the per-client job and task that hold quick AI Assistant chats. */
+export const ASSISTANT_JOB_TITLE = 'AI Assistant';
+export const ASSISTANT_TASK_TITLE = 'AI Assistant chats';
+
+/**
+ * Returns (creating once if needed) the job + task where a client's AI Assistant
+ * chats live, so a chat can start with just a client — no job or task set-up.
+ * All normal rules still apply to these chats (client isolation, versions, approvals).
+ */
+export function assistantSession(user, clientId) {
+  return db().withUser(user.id, async (tx) => {
+    await tx.query('select pg_advisory_xact_lock(hashtext($1))', [`ai_assistant:${clientId}`]);
+    const { rows: clients } = await tx.query('select id, name, status from public.ai_workspace_clients where id = $1', [clientId]);
+    const client = clients[0];
+    if (!client) throw notFound('Client');
+    if (client.status === 'archived') throw badRequest('This client is archived. Restore it before starting a chat.');
+
+    let { rows } = await tx.query(
+      `select t.id as task_id, t.job_id from public.ai_workspace_tasks t
+         join public.ai_workspace_jobs j on j.id = t.job_id
+        where t.client_id = $1 and t.title = $2 and j.title = $3 and t.archived_at is null and j.status <> 'archived'
+        order by t.created_at limit 1`,
+      [clientId, ASSISTANT_TASK_TITLE, ASSISTANT_JOB_TITLE],
+    );
+    if (!rows[0]) {
+      const job = await tx.query(
+        `insert into public.ai_workspace_jobs (client_id, title, description, status, created_by, updated_by)
+         values ($1, $2, 'Quick requests from the AI Assistant.', 'active', $3, $3) returning id`,
+        [clientId, ASSISTANT_JOB_TITLE, user.id],
+      );
+      const task = await tx.query(
+        `insert into public.ai_workspace_tasks (client_id, job_id, title, task_type, status, created_by, updated_by)
+         values ($1, $2, $3, 'general', 'in_progress', $4, $4) returning id`,
+        [clientId, job.rows[0].id, ASSISTANT_TASK_TITLE, user.id],
+      );
+      await logActivity(tx, {
+        userId: user.id,
+        type: ACTIVITY.TASK_CREATED,
+        resourceType: 'task',
+        resourceId: task.rows[0].id,
+        clientId,
+        jobId: job.rows[0].id,
+        taskId: task.rows[0].id,
+        description: `Set up the AI Assistant for “${client.name}”`,
+      });
+      rows = [{ task_id: task.rows[0].id, job_id: job.rows[0].id }];
+    }
+    return { clientId, jobId: rows[0].job_id, taskId: rows[0].task_id };
   });
 }

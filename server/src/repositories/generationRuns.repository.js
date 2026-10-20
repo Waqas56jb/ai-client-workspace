@@ -292,3 +292,16 @@ export async function markTaskInProgress(tx, taskId, userId) {
     [taskId, userId],
   );
 }
+
+/** The writing format most recently used in a conversation (conversation memory), or null. */
+export async function lastWritingFormat(tx, conversationId) {
+  const { rows } = await tx.query(
+    `select request_options -> 'options' ->> 'format' as format
+       from public.ai_workspace_generation_runs
+      where conversation_id = $1 and tool_type = 'writing_editing'
+        and request_options -> 'options' ->> 'format' in ('email', 'sms', 'whatsapp', 'other')
+      order by started_at desc limit 1`,
+    [conversationId],
+  );
+  return rows[0]?.format || null;
+}

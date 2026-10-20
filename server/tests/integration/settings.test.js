@@ -29,7 +29,7 @@ describe('settings: workspace', () => {
     expect(res.status).toBe(200);
     expect(body(res)).toMatchObject({
       workspaceName: 'Main Workspace',
-      spelling: 'British English',
+      spelling: 'Australian English',
       defaultTone: 'Professional',
       dateFormat: 'd MMM yyyy',
       defaultFileView: 'grid',
@@ -42,7 +42,7 @@ describe('settings: workspace', () => {
   it('creates the single row on first PATCH and merges later updates', async () => {
     const first = await api('patch', '/settings/workspace').send({ workspaceName: 'Studio', defaultFileView: 'list' });
     expect(first.status).toBe(200);
-    expect(body(first)).toMatchObject({ workspaceName: 'Studio', defaultFileView: 'list', spelling: 'British English', defaultPresetId: square });
+    expect(body(first)).toMatchObject({ workspaceName: 'Studio', defaultFileView: 'list', spelling: 'Australian English', defaultPresetId: square });
     const second = await api('patch', '/settings/workspace', USERS.jordan).send({ defaultTone: 'Friendly', defaultPresetId: null });
     expect(body(second)).toMatchObject({ workspaceName: 'Studio', defaultTone: 'Friendly', defaultPresetId: null });
     expect(body(await api('get', '/settings/workspace'))).toMatchObject({ workspaceName: 'Studio', defaultTone: 'Friendly' });

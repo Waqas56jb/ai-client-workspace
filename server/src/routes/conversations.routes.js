@@ -7,6 +7,8 @@ const router = Router();
 
 router.get('/tasks/:taskId/conversations', validate({ params: v.taskParams, query: v.listConversationsQuery }), ctrl.listForTask);
 router.post('/tasks/:taskId/conversations', validate({ params: v.taskParams, body: v.createConversationBody }), ctrl.create);
+router.get('/conversations', validate({ query: v.listAllConversationsQuery }), ctrl.listAll);
+router.post('/assistant/session', validate({ body: v.assistantSessionBody }), ctrl.assistantSession);
 router.get('/conversations/:id', validate({ params: v.conversationParams }), ctrl.get);
 router.patch('/conversations/:id', validate({ params: v.conversationParams, body: v.updateConversationBody }), ctrl.update);
 router.get('/conversations/:id/messages', validate({ params: v.conversationParams, query: v.listMessagesQuery }), ctrl.listMessages);

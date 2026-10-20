@@ -137,3 +137,68 @@ export async function countClientFiles(tx, fileIds, clientId) {
   );
   return rows[0].n;
 }
+
+const escapeLike = (s) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
+
+/**
+ * Chat history across the workspace (newest activity first) with the client,
+ * job and task each conversation belongs to.
+ * @param {object} tx
+ * @param {{ search?: string, clientId?: string, tool?: string, from?: string, to?: string, includeArchived?: boolean, limit: number, offset: number }} f
+ * @returns {Promise<{ rows: object[], total: number }>}
+ */
+export async function listAll(tx, f) {
+  const where = [f.includeArchived ? 'true' : 'c.archived_at is null'];
+  const params = [];
+  const add = (sql, value) => {
+    params.push(value);
+    where.push(sql.replaceAll('$?', `$${params.length}`));
+  };
+  if (f.clientId) add('c.client_id = $?', f.clientId);
+  if (f.toolType) add('c.tool_type = $?', f.toolType);
+  // Date filters match any message written in the period, so "what did we write on 3 March" finds the chat.
+  if (f.from || f.to) {
+    const cond = [];
+    if (f.from) {
+      params.push(f.from);
+      cond.push(`m.created_at >= $${params.length}::timestamptz`);
+    }
+    if (f.to) {
+      params.push(f.to);
+      cond.push(`m.created_at < $${params.length}::timestamptz`);
+    }
+    where.push(`exists (select 1 from ${M} m where m.conversation_id = c.id and m.role <> 'system' and ${cond.join(' and ')})`);
+  }
+  if (f.search) {
+    add(
+      `(c.title ilike $? escape '\\' or cl.name ilike $? escape '\\'
+        or exists (select 1 from ${M} m where m.conversation_id = c.id and m.role <> 'system' and m.content ilike $? escape '\\'))`,
+      `%${escapeLike(f.search)}%`,
+    );
+  }
+  const base = `${FROM}
+    join public.ai_workspace_clients cl on cl.id = c.client_id
+    join public.ai_workspace_jobs j on j.id = c.job_id
+    join ${TASKS} t on t.id = c.task_id
+    where ${where.join(' and ')}`;
+  const { rows } = await tx.query(
+    `select ${SELECT}, cl.name as client_name, cl.primary_colour as client_colour, cl.status as client_status, j.title as job_title, t.title as task_title
+       from ${base}
+      order by coalesce(lm.created_at, c.updated_at) desc, c.id desc
+      limit ${Number(f.limit)} offset ${Number(f.offset)}`,
+    params,
+  );
+  const { rows: count } = await tx.query(`select count(*)::int as n from ${base}`, params);
+  return { rows, total: count[0].n };
+}
+
+/** listAll row → history item DTO (conversation + where it belongs). */
+export function toHistoryDto(row) {
+  return {
+    ...toConversationDto(row),
+    lastActivityAt: iso(row.last_created_at || row.updated_at),
+    client: { id: row.client_id, name: row.client_name, primaryColor: row.client_colour, status: row.client_status },
+    job: { id: row.job_id, title: row.job_title },
+    task: { id: row.task_id, title: row.task_title },
+  };
+}

@@ -149,7 +149,7 @@ describe('writing', () => {
     expect(done.conversation.id).toBe(conversation.id);
     expect(done.userMessage).toMatchObject({ id: userMessage.id, generationId });
     expect(done.request).toMatchObject({ requestId: generationId, tool: { id: 'writing' }, prompt: 'Write an email announcing the spring sale' });
-    expect(JSON.stringify(done.request)).not.toContain('senior copywriter');
+    expect(JSON.stringify(done.request)).not.toContain('business communication assistant');
     expect(done.outputs[0].versions).toHaveLength(1);
     expect(done.assistantMessage).toMatchObject({ role: 'assistant', status: 'complete', generationId });
     expect(done.assistantMessage.requestMeta).toMatchObject({ tool: 'writing', model: 'gpt-5.4-mini', requestId: generationId, format: 'email' });
@@ -161,7 +161,9 @@ describe('writing', () => {
 
     const call = calls.responses.at(-1);
     expect(call.max_output_tokens).toBe(1500);
-    expect(call.instructions).toContain('senior copywriter');
+    expect(call.instructions).toContain('business communication assistant');
+    expect(call.instructions).toContain('Australian business English');
+    expect(call.instructions).toContain('Do not add subject lines unless requested');
     expect(call.input).toContain('<reference_document name="notes.txt">');
     expect(call.input).toContain('Opening hours: 9-5.');
     expect(call.input.match(/<\/reference_document>/g)).toHaveLength(1);

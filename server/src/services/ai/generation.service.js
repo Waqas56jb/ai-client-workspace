@@ -27,7 +27,7 @@ import { validateDimensions } from './imageProcessing.js';
  * The model is only ever called by the queue worker (execution.service.js).
  */
 
-const CLARIFY_TEXT = 'Which format do you need for this piece? Choose one and I will write it.';
+const CLARIFY_TEXT = 'Is this for an email, an SMS or a WhatsApp message? Choose one and I’ll write it.';
 const truncate = (s, n) => {
   const t = String(s || '').replace(/\s+/g, ' ').trim();
   return t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t;
@@ -153,7 +153,8 @@ export async function startGeneration(user, tool, body, { idempotencyKey } = {})
 
     if (tool === 'writing' && !prompt) throw badRequest('Enter a prompt before sending.');
     if (tool === 'writing' && !options.format) {
-      const detected = detectFormat(prompt);
+      const detected = detectFormat(prompt) || (body.conversationId ? await runsRepo.lastWritingFormat(tx, body.conversationId) : null);
+      // A follow-up in a conversation keeps the format already confirmed there ("make it shorter").
       if (detected) options.format = detected;
     }
 

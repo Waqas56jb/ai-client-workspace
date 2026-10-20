@@ -163,11 +163,20 @@ export function referenceBlocks(references = []) {
     .join('\n\n');
 }
 
+/** Conversation memory sent with each request: up to 40 messages, the newest kept within a size budget. */
+export const HISTORY_CHAR_BUDGET = 30000;
+
 export function historyBlock(history = []) {
-  const items = history
+  const all = history
     .filter((m) => m && m.status !== 'error' && m.messageType !== 'error' && has(m.content))
-    .slice(-10)
+    .slice(-40)
     .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${neutralise(String(m.content).slice(0, 4000))}`);
+  const items = [];
+  let used = 0;
+  for (let i = all.length - 1; i >= 0 && used + all[i].length <= HISTORY_CHAR_BUDGET; i -= 1) {
+    items.unshift(all[i]);
+    used += all[i].length;
+  }
   return items.length ? `<conversation_history>\n${items.join('\n\n')}\n</conversation_history>` : '';
 }
 

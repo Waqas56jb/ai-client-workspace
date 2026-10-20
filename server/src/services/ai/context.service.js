@@ -73,13 +73,45 @@ export async function loadAttachments(tx, attachmentIds, task) {
 }
 
 /** Last 10 messages of the conversation (no error/status messages). */
+/** Conversation memory: the last 20 exchanges (40 messages) of this conversation only. */
+export const HISTORY_MESSAGES = 40;
+
 export async function loadHistory(tx, conversationId, { excludeIds = [] } = {}) {
   if (!conversationId) return [];
-  const rows = await listMessagesForContext(tx, conversationId, 12);
-  return rows
-    .filter((m) => !excludeIds.includes(m.id) && m.message_type !== 'error')
-    .slice(-10)
-    .map((m) => ({ role: m.role, content: m.content, messageType: m.message_type }));
+  const rows = (await listMessagesForContext(tx, conversationId, HISTORY_MESSAGES + excludeIds.length)).filter(
+    (m) => !excludeIds.includes(m.id) && m.message_type !== 'error',
+  );
+  // The assistant's chat reply is only a summary ("Here is an email…"); the memory must
+  // carry the draft it actually produced, so follow-ups like "make it shorter" work.
+  const outputIds = [...new Set(rows.flatMap((m) => (m.role === 'assistant' ? m.metadata?.outputIds || [] : [])))];
+  const drafts = await outputTextsForContext(tx, outputIds);
+  return rows.slice(-HISTORY_MESSAGES).map((m) => {
+    const produced = m.role === 'assistant' ? (m.metadata?.outputIds || []).map((id) => drafts.get(id)).filter(Boolean) : [];
+    const content = produced.length ? [m.content, ...produced].join('\n\n') : m.content;
+    return { role: m.role, content, messageType: m.message_type };
+  });
+}
+
+/** Current text of the outputs referenced in the history (same conversation, RLS-scoped). */
+async function outputTextsForContext(tx, outputIds) {
+  const map = new Map();
+  if (!outputIds.length) return map;
+  const { rows } = await tx.query(
+    `select o.id, o.title, o.output_kind, v.content, v.sections
+       from public.ai_workspace_outputs o
+       left join public.ai_workspace_output_versions v on v.id = o.current_version_id
+      where o.id = any($1::uuid[])`,
+    [outputIds],
+  );
+  for (const r of rows) {
+    if (r.output_kind === 'image') {
+      map.set(r.id, `[Image created: ${r.title}]`);
+      continue;
+    }
+    const text = Array.isArray(r.sections) && r.sections.length ? r.sections.map((s) => `${s.label}: ${s.text}`).join('\n') : r.content || '';
+    if (text) map.set(r.id, `[Draft: ${r.title}]\n${text.slice(0, 3000)}`);
+  }
+  return map;
 }
 
 /**

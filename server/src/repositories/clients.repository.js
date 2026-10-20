@@ -71,7 +71,7 @@ export const BRAND_COLUMNS = {
 /** Brand fields stored as keys of the `writing_preferences` jsonb object. */
 export const WRITING_KEYS = ['tone', 'formality', 'spelling', 'useWords', 'avoidWords', 'formatting', 'writingInstructions'];
 
-export const WRITING_DEFAULTS = { tone: 'Professional', formality: 'Balanced', spelling: 'British English', useWords: '', avoidWords: '', formatting: '', writingInstructions: '' };
+export const WRITING_DEFAULTS = { tone: 'Professional', formality: 'Balanced', spelling: 'Australian English', useWords: '', avoidWords: '', formatting: '', writingInstructions: '' };
 
 const SELECT_COLUMNS = [
   'id', 'name', 'slug', 'industry', 'status', 'description', 'contact_name', 'contact_email', 'contact_phone', 'website',
