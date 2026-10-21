@@ -34,11 +34,12 @@ test('main app pages have no serious accessibility violations', async ({ page })
   test.setTimeout(300_000);
   await login(page);
   const report = [];
-  for (const route of ['/dashboard', '/clients', `/clients/${ids.client}`, `/clients/${ids.client}/brand`, '/jobs', `/jobs/${ids.job}`, '/tasks', `/tasks/${ids.task}`,
+  for (const route of ['/assistant', '/history', '/dashboard', '/clients', `/clients/${ids.client}`, `/clients/${ids.client}/brand`, '/jobs', `/jobs/${ids.job}`, '/tasks', `/tasks/${ids.task}`,
     `/tasks/${ids.task}/workspace`, '/files', '/approved', '/search?q=a', '/image-presets', '/ai-instructions', '/team', '/settings/preferences']) {
     await page.goto(route);
     await page.waitForLoadState('networkidle');
-    const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    // The brand preview deliberately renders text in the client's own brand colours.
+    const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).exclude('[data-brand-preview]').analyze();
     for (const v of r.violations) report.push({ route, id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(' ') });
   }
   console.log(JSON.stringify(report, null, 1));

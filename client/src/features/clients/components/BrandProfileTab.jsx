@@ -71,7 +71,8 @@ function LivePreview({ values, logoId }) {
         <p className="text-[13px] font-semibold text-ink">Live preview</p>
         <span className="text-[11px] text-muted">Updates as you type</span>
       </div>
-      <div className="p-4" style={{ backgroundColor: bg }}>
+      {/* Renders in the client's own brand colours on purpose (excluded from contrast checks). */}
+      <div className="p-4" style={{ backgroundColor: bg }} data-brand-preview>
         <div className="flex items-center gap-2.5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white" style={{ boxShadow: `inset 0 0 0 1px ${primary}22` }}>
             {logoId ? (
@@ -94,7 +95,7 @@ function LivePreview({ values, logoId }) {
         </h3>
         <p className="mt-1.5 text-[12.5px] leading-5" style={{ color: '#3B3D52', fontFamily: body }}>
           Body copy uses {values.bodyFont || values.fontFamily || 'the default font'}, with{' '}
-          <span style={{ color: secondary, fontWeight: 600 }}>secondary highlights</span> where they help.
+          <span data-brand-preview style={{ color: secondary, fontWeight: 600 }}>secondary highlights</span> where they help.
         </p>
         <div className="mt-4 flex items-center gap-2">
           <span className="rounded-md px-3 py-1.5 text-[12px] font-semibold text-white" style={{ backgroundColor: primary, fontFamily: body }}>
