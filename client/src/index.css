@@ -132,8 +132,8 @@ html[data-theme='dark'] {
   --color-subtle: #a3a7bb;
   --color-line: #343648;
   --color-line-strong: #45485e;
-  --color-brand: #7d72ff;
-  --color-brand-hover: #8f86ff;
+  --color-brand: #9d94ff; /* readable as text on dark surfaces */
+  --color-brand-hover: #b0a9ff;
   --color-brand-soft: #2a2850;
   --color-sidebar-chat: #171824;
   --color-success: #5fd39b;
@@ -153,6 +153,13 @@ html[data-theme='dark'] .checkerboard {
     linear-gradient(-45deg, #26283a 25%, transparent 25%),
     linear-gradient(45deg, transparent 75%, #26283a 75%),
     linear-gradient(-45deg, transparent 75%, #26283a 75%);
+}
+/* Filled brand buttons use dark text in the dark theme (white on light violet is too faint). */
+html[data-theme='dark'] .bg-brand.text-white,
+html[data-theme='dark'] .bg-brand .text-white,
+html[data-theme='dark'] .bg-success.text-white,
+html[data-theme='dark'] .bg-danger.text-white {
+  color: #11121c;
 }
 html[data-theme='dark'] ::selection {
   background: #3b3770;

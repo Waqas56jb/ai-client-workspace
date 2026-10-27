@@ -80,7 +80,7 @@ export default function ChatPage() {
   usePageTitle(conv?.title || 'Chat');
 
   // ── composer state ──
-  const uploads = useUploads(scope, mode);
+  const uploads = useUploads(scope, mode, clientId);
   const [draft, setDraft] = useState('');
   const [reference, setReference] = useState(null); // { entry, note } chosen with "Use" / "Edit this image"
   const [dismissedKey, setDismissedKey] = useState(null);

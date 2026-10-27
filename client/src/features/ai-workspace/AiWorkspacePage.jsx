@@ -147,42 +147,6 @@ export default function AiWorkspacePage() {
   return <Workspace key={task.id} task={task} client={client} />;
 }
 
-/**
- * One AI Assistant chat: loads the conversation, its task and client, then
- * renders the shared workspace in the simple "assistant" layout. `initialDraft`
- * (from the start screen) is sent once as the first message.
- */
-export function AssistantConversation({ conversationId, initialDraft, onNewChat }) {
-  const convQ = useConversation(conversationId);
-  const taskQ = useTask(convQ.data?.taskId);
-  const clientQ = useClient(convQ.data?.clientId); // loads alongside the task (the chat already knows its client)
-  usePageTitle(convQ.data ? `${convQ.data.title} · AI Assistant` : 'AI Assistant');
-
-  const error = convQ.error || taskQ.error || clientQ.error;
-  if (error) {
-    return (
-      <div className="flex flex-1 items-center justify-center p-6">
-        <ErrorState
-          title="This chat could not be opened"
-          error={error?.status === 404 ? { ...error, message: 'This chat no longer exists. Pick another one from your history or start a new chat.' } : error}
-          onRetry={() => (convQ.error ? convQ.refetch() : taskQ.error ? taskQ.refetch() : clientQ.refetch())}
-          action={<Button onClick={onNewChat}>New chat</Button>}
-        />
-      </div>
-    );
-  }
-  if (!convQ.data || !taskQ.data || !clientQ.data) {
-    return (
-      <div className="flex flex-1 flex-col gap-4 p-6" role="status" aria-label="Loading chat">
-        <Skeleton className="h-10 w-1/2" />
-        <Skeleton className="h-24 w-2/3" />
-        <Skeleton className="h-40 w-3/4" />
-      </div>
-    );
-  }
-  return <Workspace task={taskQ.data} client={clientQ.data} variant="assistant" fixedConversationId={conversationId} initialDraft={initialDraft} onNewChat={onNewChat} />;
-}
-
 function WorkspaceSkeleton() {
   return (
     <div className="flex h-[calc(100dvh-4rem)] flex-col" role="status" aria-label="Loading workspace">

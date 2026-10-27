@@ -38,6 +38,7 @@ function AttachmentChip({ item, onRemove, onRetry }) {
             <span className="mt-0.5 block text-[13px] text-muted">Uploading… {item.progress ? `${Math.round(item.progress * 100)}%` : ''}</span>
           </>
         )}
+        {item.status === 'waiting' && <span className="mt-0.5 block text-[13px] text-muted">Getting ready…</span>}
         {item.status === 'ready' && <span className="block text-[13px] text-success">Ready to send · {formatBytes(item.size)}</span>}
         {bad && <span className="block text-[13px] leading-4 text-danger">{item.error}</span>}
       </span>

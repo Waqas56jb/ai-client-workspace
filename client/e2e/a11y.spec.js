@@ -1,6 +1,6 @@
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
-import { closeDb, createQaClient, createQaJob, createQaTask, login } from './helpers.js';
+import { closeDb, createQaClient, createQaJob, createQaTask, login, post } from './helpers.js';
 
 /**
  * Accessibility: axe-core (WCAG 2.1 A/AA rules) on the main pages, plus keyboard
@@ -55,5 +55,20 @@ test('dialogs trap focus and close with Escape', async ({ page }) => {
   if (await dialog.isVisible().catch(() => false)) {
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
+  }
+});
+
+test('chat in dark theme has no serious accessibility violations', async ({ page }) => {
+  await login(page);
+  await page.evaluate(() => localStorage.setItem('studioflow.chat', JSON.stringify({ state: { theme: 'dark', mode: 'writing' }, version: 0 })));
+  const session = (await post('/assistant/session', { clientId: ids.client })).data;
+  const chat = (await post(`/tasks/${session.taskId}/conversations`, { tool: 'writing', title: 'A11y dark chat' })).data;
+  for (const route of ['/', `/chat/${chat.id}`]) {
+    await page.goto(route);
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    const serious = r.violations.filter((v) => ['serious', 'critical'].includes(v.impact));
+    expect(serious.map((v) => `${route} ${v.id}: ${v.help} e.g. ${v.nodes[0]?.target?.join(' ')}`)).toEqual([]);
   }
 });

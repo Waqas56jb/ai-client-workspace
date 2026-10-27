@@ -9,20 +9,36 @@ ai-client-workspace/
 └── README.md
 ```
 
-## AI Assistant (main way to work)
+## Chat (the home screen)
 
-- **AI Assistant** (`/assistant`): pick a client, choose *Write a message* or *Create an image*, then paste a draft or describe what you need. No job or task set-up is needed. Each client gets an "AI Assistant" job automatically, so all the normal rules still apply: client isolation, versions, approvals and files.
-- **Writing:** the Writing tool follows the agency's email assistant brief.
-  - It uses natural Australian business English.
-  - If the format (email, SMS or WhatsApp) is unclear, it asks first.
-  - Tones are Persuasive, Professional, Formal and Casual.
-  - It adds no emojis, and no subject line unless asked.
-  - It never changes facts or prices.
-  - You can edit the brief in **AI Instructions → Writing & Editing**.
-- **Quick changes** under each written result: Shorter, More persuasive, More formal, Casual, More assertive, More diplomatic, 2 other versions, Explain changes, As SMS, As WhatsApp.
-- **Memory:** every request includes the last 20 exchanges (40 messages) of that chat, including the drafts the AI wrote, so follow-ups like "make it friendlier" work. Memory is per chat and per client; it is never shared across clients.
-- **Images:** create from a description, or upload a photo and say what to change. Results are exactly the chosen size. A small preview is shown in the chat; downloads are the full-size file.
-- **Chat history** (`/history`, plus the panel inside the assistant): every chat, grouped by day, with search by words, client, type, an exact day, or month and year.
+Signing in opens the chat at `/` (an existing chat is `/chat/:id`). It works like ChatGPT: pick a client, type or add a photo, get the result, ask for changes, approve, download. Jobs and tasks stay behind the scenes: each client gets an "AI Assistant" job and task automatically, so client isolation, versions, approvals and files all work as before.
+
+- **Sidebar:** New chat, the client picker (searchable), search, *Find by date* (a day, or a month and year), the chats grouped by Today / Yesterday / Previous 7 days / older, and **More** (Clients, Files, Approved work, Image sizes, AI instructions, Team, Settings, theme, sign out). Changing the client starts a new chat; any unsent text and files are cleared, so nothing travels to another client.
+- **Composer:** *Add photo or file* (or drag and drop, or paste), *Write / Image*, *Options* (format and tone, or picture size) and *Send*.
+  - Uploads show real progress.
+  - The composer explains files it can't take: iPhone HEIC photos, files over 15 MB, and other unsupported types.
+  - Send stays disabled until every file is uploaded.
+  - If the text mentions a photo but none is added, a hint says so.
+- **Writing:** the brief in AI Instructions → Writing & Editing is unchanged (Australian business English, no emojis, no subject line unless asked, never changes facts or prices). Quick changes appear under the latest answer.
+- **Images:**
+  - Every picture in a chat is numbered **Image 1, Image 2…** in the order it appears, counting both uploaded photos and results. The numbers come from the stored messages, so they don't change on reload.
+  - **Edit this image** (on a result) or **Use** (on an uploaded photo) attaches that exact picture as a visible chip.
+  - Typing "use Image 2" or "the image above" (in Image mode) proposes the matching picture as a chip the user can remove. The browser resolves it to a stored file or output version; the AI never guesses.
+  - Editing a result makes a new version of it, and earlier versions stay as they were.
+- **Edit an earlier message:** *Edit* on any of your messages, then *Save & send*. That message and everything after it are hidden from the chat and from the AI's memory, and the AI answers again. Nothing is deleted: earlier drafts and approvals stay in Files and Approved work.
+- **Memory:** each request includes the last 20 exchanges (40 messages) of that chat, including the drafts the AI wrote. Memory is per chat; hidden (edited-away) messages are left out.
+- **Progress:** the chat follows the real server status (*Waiting to start…*, *Creating your image…*, *Writing your message…*), also after a reload. A failed answer shows *Try again*.
+- **Themes:** light, dark, or the same as the device (More menu). The dark theme applies only to the chat. Admin pages stay light.
+- Old `/assistant` links redirect to the chat. The full history page is still at `/history`.
+
+### API additions for the chat (backward compatible)
+
+| Change | Request | Notes |
+| --- | --- | --- |
+| Replace an earlier message | `replacesMessageId` on `POST /ai/writing/generate`, `/ai/images/generate`, `/ai/images/edit` (needs `conversationId`) | One transaction hides that user message and every later one (`metadata.supersededAt`), then stores the new prompt. Returns 404 for another chat's message or an AI message, 409 if the message was already changed, and 409 `CONVERSATION_BUSY` while an answer is still running. |
+| Edit an exact image version | `versionId` on `/ai/images/edit`, or `options.editVersionId` on `/ai/images/generate` | The version must belong to that output (404 otherwise). The edit starts from that version's pixels and size. |
+| Which version a message produced | Messages now include `versionIds` (aligned with `outputIds`) and `editedFromId` | Older messages have none. The UI falls back to message order. |
+| All versions of a chat's outputs | `GET /outputs?conversationId=…&withVersions=true` | `withVersions` is honoured only together with `conversationId`. |
 
 ## Quick start (local)
 
