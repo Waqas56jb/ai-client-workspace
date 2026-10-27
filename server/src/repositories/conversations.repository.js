@@ -13,7 +13,7 @@ const TASKS = 'public.ai_workspace_tasks';
 
 const SELECT = `c.id, c.task_id, c.job_id, c.client_id, c.title, c.tool_type, c.created_by, c.created_at, c.updated_at, c.archived_at,
   ${userColumns('u', 'cu_')},
-  (select count(*)::int from ${M} m where m.conversation_id = c.id and m.role <> 'system') as message_count,
+  (select count(*)::int from ${M} m where m.conversation_id = c.id and m.role <> 'system' and m.metadata ->> 'supersededAt' is null) as message_count,
   (select count(*)::int from ${O} o where o.conversation_id = c.id and o.archived_at is null) as output_count,
   lm.role as last_role, lm.content as last_content, lm.created_at as last_created_at`;
 
@@ -21,7 +21,7 @@ const FROM = `${C} c
   left join ${U} u on u.id = c.created_by
   left join lateral (
     select m.role, left(m.content, 200) as content, m.created_at from ${M} m
-     where m.conversation_id = c.id and m.role <> 'system'
+     where m.conversation_id = c.id and m.role <> 'system' and m.metadata ->> 'supersededAt' is null
      order by m.created_at desc, m.id desc limit 1
   ) lm on true`;
 

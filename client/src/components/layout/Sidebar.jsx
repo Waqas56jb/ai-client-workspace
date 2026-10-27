@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronsLeft, ChevronsRight, ChevronsUpDown, LogOut, Settings, SlidersHorizontal, UserRound, Check } from 'lucide-react';
 import { Avatar, Menu, Tooltip } from '@/components/ui';
 import { NAV_SECTIONS } from './navigation';
@@ -29,6 +29,7 @@ function NavItem({ item, collapsed, onNavigate }) {
   const link = (
     <NavLink
       to={item.to}
+      end={item.end}
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
@@ -64,7 +65,11 @@ export function Sidebar({ mobile = false, onNavigate }) {
   const collapsedPref = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const collapsed = !mobile && collapsedPref;
-  const [closedSections, setClosedSections] = useState({});
+  const { pathname } = useLocation();
+  // "Projects" starts folded away unless one of its pages is open.
+  const [closedSections, setClosedSections] = useState(() =>
+    Object.fromEntries(NAV_SECTIONS.filter((sec) => sec.collapsed && !sec.items.some((i) => pathname.startsWith(i.to))).map((sec) => [sec.id, true])),
+  );
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();

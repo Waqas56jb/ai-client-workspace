@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
  * Dropdown menu with keyboard support.
  * items: [{ label, icon?, onSelect, danger?, disabled?, separator?, hint? }]
  */
-export function Menu({ items, trigger, align = 'end', label = 'More actions', className, width = 200 }) {
+export function Menu({ items, trigger, align = 'end', label = 'More actions', className, width = 200, size = 'md' }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const btnRef = useRef(null);
@@ -83,7 +83,7 @@ export function Menu({ items, trigger, align = 'end', label = 'More actions', cl
           {isValidElement(trigger) ? cloneElement(trigger, { 'aria-haspopup': 'menu', 'aria-expanded': open, 'aria-controls': open ? id : undefined }) : trigger}
         </span>
       ) : (
-        <Button ref={btnRef} variant="ghost" size="icon-sm" icon={MoreHorizontal} aria-label={label} aria-haspopup="menu" aria-expanded={open} onClick={toggle} className={className} />
+        <Button ref={btnRef} variant="ghost" size={size === 'lg' ? 'icon' : 'icon-sm'} icon={MoreHorizontal} aria-label={label} aria-haspopup="menu" aria-expanded={open} onClick={toggle} className={cn(size === 'lg' && 'h-11 w-11 rounded-xl', className)} />
       )}
       {open &&
         createPortal(
@@ -111,12 +111,13 @@ export function Menu({ items, trigger, align = 'end', label = 'More actions', cl
                   }}
                   className={cn(
                     'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-45',
+                    size === 'lg' && 'min-h-11 gap-3 rounded-xl px-3 text-[15px]',
                     item.danger ? 'text-danger hover:bg-danger-soft focus:bg-danger-soft' : 'text-ink hover:bg-canvas focus:bg-canvas',
                   )}
                 >
-                  {item.icon && <item.icon size={15} className={item.danger ? '' : 'text-muted'} aria-hidden />}
+                  {item.icon && <item.icon size={size === 'lg' ? 18 : 15} className={item.danger ? '' : 'text-muted'} aria-hidden />}
                   <span className="flex-1 truncate">{item.label}</span>
-                  {item.hint && <span className="text-[11px] text-subtle">{item.hint}</span>}
+                  {item.hint && <span className={cn('text-subtle', size === 'lg' ? 'text-[13px]' : 'text-[11px]')}>{item.hint}</span>}
                 </button>
               ),
             )}

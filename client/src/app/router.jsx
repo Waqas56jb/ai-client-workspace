@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { createBrowserRouter, Navigate, useRouteError } from 'react-router-dom';
+import { createBrowserRouter, Navigate, useParams, useRouteError } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { AppShell } from '@/components/layout';
 import { RequireAuth, RedirectIfAuthed } from './RequireAuth';
@@ -8,7 +8,7 @@ import { ErrorState, Page } from '@/components/ui';
 const LoginPage = lazy(() => import('@/features/auth/LoginPage'));
 const ForgotPasswordPage = lazy(() => import('@/features/auth/ForgotPasswordPage'));
 const DashboardPage = lazy(() => import('@/features/dashboard/DashboardPage'));
-const AssistantPage = lazy(() => import('@/features/assistant/AssistantPage'));
+const ChatPage = lazy(() => import('@/features/chat/ChatPage'));
 const ChatHistoryPage = lazy(() => import('@/features/history/ChatHistoryPage'));
 const ClientsPage = lazy(() => import('@/features/clients/ClientsPage'));
 const ClientFormPage = lazy(() => import('@/features/clients/ClientFormPage'));
@@ -47,6 +47,12 @@ function PageLoader() {
 
 const s = (el) => <Suspense fallback={<PageLoader />}>{el}</Suspense>;
 
+/** Old AI Assistant links keep working. */
+function LegacyChatRedirect() {
+  const { conversationId } = useParams();
+  return <Navigate to={`/chat/${conversationId}`} replace />;
+}
+
 function RouteError() {
   const error = useRouteError();
   return (
@@ -70,14 +76,16 @@ export const router = createBrowserRouter([
       {
         element: <RequireAuth />,
         children: [
+          // The chat is the home screen and has its own simple layout.
+          { path: '/', element: s(<ChatPage />), errorElement: <RouteError /> },
+          { path: '/chat/:conversationId', element: s(<ChatPage />), errorElement: <RouteError /> },
+          { path: '/assistant', element: <Navigate to="/" replace /> },
+          { path: '/assistant/c/:conversationId', element: <LegacyChatRedirect /> },
           {
             element: <AppShell />,
             errorElement: <RouteError />,
             children: [
-              { path: '/', element: <Navigate to="/dashboard" replace /> },
               { path: '/dashboard', element: s(<DashboardPage />) },
-              { path: '/assistant', element: s(<AssistantPage />) },
-              { path: '/assistant/c/:conversationId', element: s(<AssistantPage />) },
               { path: '/history', element: s(<ChatHistoryPage />) },
               { path: '/clients', element: s(<ClientsPage />) },
               { path: '/clients/new', element: s(<ClientFormPage />) },

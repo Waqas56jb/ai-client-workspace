@@ -42,7 +42,7 @@ export default function LoginPage() {
       const user = await login(values);
       toast.success(`Welcome back, ${user.name.split(' ')[0]}`);
       const from = location.state?.from;
-      navigate(from && from !== '/login' ? from : '/dashboard', { replace: true });
+      navigate(from && from !== '/login' ? from : '/', { replace: true });
     } catch (err) {
       if (err?.status === 403) setNotMember(true);
       setAuthError(err?.status === 403 ? 'Not a workspace member. This account signed in successfully but is not an active member of the StudioFlow workspace. Ask your administrator to add you.' : err?.message || 'Sign-in failed. Please try again.');

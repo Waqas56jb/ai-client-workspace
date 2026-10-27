@@ -27,7 +27,7 @@ export function Providers({ children }) {
       {isMockMode && <CrossTabSync />}
       {children}
       <Toaster
-        position="bottom-right"
+        position="top-center"
         richColors
         closeButton
         toastOptions={{ style: { fontFamily: 'Inter, sans-serif', fontSize: '13px', borderRadius: '12px' } }}

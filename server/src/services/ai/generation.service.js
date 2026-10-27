@@ -5,7 +5,7 @@ import { DB_TO_TOOL, TOOL_TO_DB } from '../../constants/domain.js';
 import { resolveImageModel, resolveTextModel } from '../../constants/models.js';
 import { AppError, badRequest, conflict, notFound } from '../../utils/errors.js';
 import * as runsRepo from '../../repositories/generationRuns.repository.js';
-import { getMessageRow, insertMessage, toMessageDto, updateMessageMetadata } from '../../repositories/messages.repository.js';
+import { getMessageRow, insertMessage, supersedeFrom, toMessageDto, updateMessageMetadata } from '../../repositories/messages.repository.js';
 import { getOutputDto } from '../output.service.js';
 import { enqueueGeneration } from '../../jobs/generationQueue.js';
 import {
@@ -95,6 +95,21 @@ async function findIdempotentRun(tx, userId, idempotencyKey, scope) {
   return existing;
 }
 
+/**
+ * "Edit an earlier message": the new request replaces one of the user's own
+ * prompts in this conversation. That prompt and everything after it are hidden
+ * (not deleted) in the same transaction that stores the new prompt.
+ */
+async function replaceFrom(tx, conversationId, messageId) {
+  const row = await getMessageRow(tx, messageId);
+  if (!row || row.conversation_id !== conversationId || row.role !== 'user') throw notFound('Message');
+  if (row.metadata?.supersededAt) throw conflict('This message was already changed. Reload the chat and try again.');
+  if (await runsRepo.countActiveRunsInConversation(tx, conversationId)) {
+    throw new AppError('CONVERSATION_BUSY', 'Wait for the current answer to finish before changing an earlier message.', 409);
+  }
+  await supersedeFrom(tx, conversationId, messageId);
+}
+
 /** Inserts the run + links the user message. Returns the run row. */
 async function createRun(tx, { userId, tool, task, conversationId, userMessageId, model, requestOptions, idempotencyKey, runId }) {
   const run = await runsRepo.insertRun(tx, {
@@ -152,6 +167,12 @@ export async function startGeneration(user, tool, body, { idempotencyKey } = {})
     }
 
     if (tool === 'writing' && !prompt) throw badRequest('Enter a prompt before sending.');
+    if (body.replacesMessageId) {
+      if (!body.conversationId || body.clarifiesMessageId) throw badRequest('Changing a message needs its conversation.');
+      await loadConversationForTask(tx, body.conversationId, task);
+      // Hide the old message first, so the format remembered below comes only from the part of the chat that stays.
+      await replaceFrom(tx, body.conversationId, body.replacesMessageId);
+    }
     if (tool === 'writing' && !options.format) {
       const detected = detectFormat(prompt) || (body.conversationId ? await runsRepo.lastWritingFormat(tx, body.conversationId) : null);
       // A follow-up in a conversation keeps the format already confirmed there ("make it shorter").
@@ -180,7 +201,7 @@ export async function startGeneration(user, tool, body, { idempotencyKey } = {})
       role: 'user',
       content: displayContent || summarise(tool, options),
       messageType: 'prompt',
-      metadata: { tool, generationPrompt: prompt, requestOptions: options, attachmentIds, generationId: runId },
+      metadata: { tool, generationPrompt: prompt, requestOptions: options, attachmentIds, generationId: runId, ...(body.replacesMessageId ? { replacesMessageId: body.replacesMessageId } : {}) },
       userId: user.id,
     });
     if (clarification) await updateMessageMetadata(tx, clarification.id, { resolved: true, answeredByMessageId: userRow.id });
@@ -247,7 +268,7 @@ export async function startGeneration(user, tool, body, { idempotencyKey } = {})
  * Starts a run that produces a NEW version of an existing output
  * (writing revise, image edit, regenerate).
  */
-async function startOutputRun(user, { outputId, mode, prompt, versionId, note, idempotencyKey, extraOptions = {}, attachmentIds = [], conversationId: requestedConversationId }) {
+async function startOutputRun(user, { outputId, mode, prompt, versionId, note, idempotencyKey, extraOptions = {}, attachmentIds = [], conversationId: requestedConversationId, replacesMessageId }) {
   const db = getDatabase();
   const result = await db.withUser(user.id, async (tx) => {
     const idempotencyScope = `${mode}:${outputId}`;
@@ -258,7 +279,8 @@ async function startOutputRun(user, { outputId, mode, prompt, versionId, note, i
     const tool = DB_TO_TOOL[output.tool_type];
     if (mode === 'revise' && output.output_kind !== 'text') throw badRequest('Only text outputs can be revised with writing instructions.');
     if (mode === 'image_edit' && output.output_kind !== 'image') throw badRequest('Only image outputs can be edited.');
-    if (versionId && !(await runsRepo.getOutputVersion(tx, outputId, versionId))) throw notFound('Version');
+    const version = versionId ? await runsRepo.getOutputVersion(tx, outputId, versionId) : null;
+    if (versionId && !version) throw notFound('Version');
 
     const { task } = await loadTaskScope(tx, output.task_id);
     const instruction = await loadInstruction(tx, tool);
@@ -286,8 +308,9 @@ async function startOutputRun(user, { outputId, mode, prompt, versionId, note, i
       };
       content = `Regenerate “${output.title}”`;
     } else if (mode === 'image_edit') {
-      const meta = output.image_meta || {};
-      if (!output.version_object_path) throw new AppError('INVALID_STATE', 'This image has no stored pixels to edit.', 409);
+      // Start from the chosen version ("Image 2" in the chat) or the current one.
+      const meta = (version || output).image_meta || {};
+      if (!(version || output).version_object_path) throw new AppError('INVALID_STATE', 'This image has no stored pixels to edit.', 409);
       const options = {
         width: meta.requestedWidth ?? meta.actualWidth,
         height: meta.requestedHeight ?? meta.actualHeight,
@@ -298,7 +321,16 @@ async function startOutputRun(user, { outputId, mode, prompt, versionId, note, i
       validateDimensions(options.width, options.height);
       // Extra reference images must belong to the same client/job/task scope (same rule as generation).
       const refs = await loadAttachments(tx, attachmentIds, task);
-      requestOptions = { mode: 'image_edit', tool, prompt, options, attachmentIds: refs.map((a) => a.id), targetOutputId: outputId, note: 'AI edit of the previous version' };
+      requestOptions = {
+        mode: 'image_edit',
+        tool,
+        prompt,
+        options,
+        attachmentIds: refs.map((a) => a.id),
+        targetOutputId: outputId,
+        ...(version ? { sourceVersionId: version.version_id } : {}),
+        note: version ? `AI edit of v${version.version_number}` : 'AI edit of the previous version',
+      };
       content = prompt;
     } else {
       // Carry the original request's options (vehicle facts, ad settings) so the
@@ -326,6 +358,11 @@ async function startOutputRun(user, { outputId, mode, prompt, versionId, note, i
       ? (await loadConversationForTask(tx, output.conversation_id, task)).id
       : await ensureConversation(tx, { task, tool, title: output.title, userId: user.id });
 
+    if (replacesMessageId) {
+      if (mode !== 'image_edit') throw badRequest('Only image edits can replace an earlier message here.');
+      await replaceFrom(tx, conversationId, replacesMessageId);
+    }
+
     const runId = crypto.randomUUID();
     const userRow = await insertMessage(tx, {
       conversationId,
@@ -335,10 +372,14 @@ async function startOutputRun(user, { outputId, mode, prompt, versionId, note, i
       metadata: {
         tool,
         generationPrompt: requestOptions.prompt,
-        requestOptions: { ...requestOptions.options, ...(mode === 'image_edit' ? { editOutputId: outputId } : {}) },
+        requestOptions: {
+          ...requestOptions.options,
+          ...(mode === 'image_edit' ? { editOutputId: outputId, ...(requestOptions.sourceVersionId ? { editVersionId: requestOptions.sourceVersionId } : {}) } : {}),
+        },
         attachmentIds: requestOptions.attachmentIds || [],
         generationId: runId,
         targetOutputId: outputId,
+        ...(replacesMessageId ? { replacesMessageId } : {}),
       },
       userId: user.id,
     });
@@ -366,7 +407,9 @@ export const startWritingRevision = (user, body, opts = {}) =>
 export const startImageEdit = (user, body, opts = {}) =>
   startOutputRun(user, {
     outputId: body.outputId,
+    versionId: body.versionId,
     conversationId: body.conversationId,
+    replacesMessageId: body.replacesMessageId,
     mode: 'image_edit',
     prompt: body.prompt,
     idempotencyKey: opts.idempotencyKey,

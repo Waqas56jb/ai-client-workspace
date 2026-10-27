@@ -37,7 +37,7 @@ test.afterAll(closeDb);
 test.use({ storageState: STATE });
 
 const ROUTES = () => [
-  '/assistant', `/assistant/c/${ids.chat}`, '/history',
+  '/', `/chat/${ids.chat}`, '/history',
   '/dashboard', '/clients', '/clients/new', `/clients/${ids.client}`, `/clients/${ids.client}/edit`, `/clients/${ids.client}/jobs`,
   `/clients/${ids.client}/brand`, `/clients/${ids.client}/reference-files`, `/clients/${ids.client}/activity`,
   '/jobs', '/jobs/new', `/jobs/${ids.job}`, `/jobs/${ids.job}/edit`,

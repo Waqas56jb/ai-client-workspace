@@ -24,11 +24,11 @@ export default function NotFoundPage() {
           ) : (
             'The item you were looking for may have been moved or deleted.'
           )}{' '}
-          Try search, or head back to your dashboard.
+          Try search, or go back to your chats.
         </p>
         <div className="mt-7 flex flex-wrap justify-center gap-2">
-          <Button as={Link} to="/dashboard" variant="primary" icon={LayoutDashboard}>
-            Go to dashboard
+          <Button as={Link} to="/" variant="primary" icon={LayoutDashboard}>
+            Back to chat
           </Button>
           <Button as={Link} to="/search" icon={Search}>
             Search the workspace

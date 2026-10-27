@@ -23,6 +23,8 @@ const base = {
   taskId: id,
   conversationId: id.optional(),
   attachmentIds,
+  // "Edit an earlier message": this request replaces that user message and hides everything after it.
+  replacesMessageId: id.optional(),
 };
 
 export const generationIdParams = z.object({ id });
@@ -110,6 +112,8 @@ export const imageGenerateBody = z.object({
     overlayLogo: z.boolean().optional().default(false),
     // Sent by the UI when "Edit existing image" is active → handled as an image edit.
     editOutputId: id.optional().or(z.literal('').transform(() => undefined)).or(z.null().transform(() => undefined)),
+    // The exact version of that image to start from (default: its current version).
+    editVersionId: id.optional().or(z.literal('').transform(() => undefined)).or(z.null().transform(() => undefined)),
   }),
 });
 
@@ -117,7 +121,9 @@ export const imageEditBody = z.preprocess(
   (b) => (b && typeof b === 'object' && !b.outputId && b.options?.editOutputId ? { ...b, outputId: b.options.editOutputId } : b),
   z.object({
     outputId: id,
+    versionId: id.optional(),
     conversationId: id.optional(),
+    replacesMessageId: id.optional(),
     attachmentIds,
     prompt: text(4000).min(1, 'Describe the edit you want.'),
     options: z

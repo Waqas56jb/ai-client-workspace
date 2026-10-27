@@ -30,6 +30,7 @@
   --color-sidebar-muted: #a5a6c0;
   --color-sidebar-active: #302d50;
   --color-sidebar-hover: #222139;
+  --color-sidebar-chat: #f3f4f8;
 
   --radius-sm: 6px;
   --radius-md: 8px;
@@ -119,4 +120,48 @@
 }
 .typing-dot {
   animation: pulse-dot 1.2s infinite ease-in-out;
+}
+
+/* Dark theme for the chat workspace (set on <html> by ChatPage while it is open). */
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --color-canvas: #151621;
+  --color-surface: #1c1d2a;
+  --color-ink: #f4f5fb;
+  --color-muted: #b5b9cb; /* ≥4.5:1 on surface */
+  --color-subtle: #a3a7bb;
+  --color-line: #343648;
+  --color-line-strong: #45485e;
+  --color-brand: #7d72ff;
+  --color-brand-hover: #8f86ff;
+  --color-brand-soft: #2a2850;
+  --color-sidebar-chat: #171824;
+  --color-success: #5fd39b;
+  --color-success-soft: #173326;
+  --color-warning: #f0c060;
+  --color-warning-soft: #3a2f14;
+  --color-danger: #ff8a8a;
+  --color-danger-soft: #3d1d22;
+  --color-info: #8fb5ff;
+  --color-info-soft: #1b2944;
+  --shadow-pop: 0 12px 32px -8px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+html[data-theme='dark'] .checkerboard {
+  background-color: #1f2030;
+  background-image:
+    linear-gradient(45deg, #26283a 25%, transparent 25%),
+    linear-gradient(-45deg, #26283a 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #26283a 75%),
+    linear-gradient(-45deg, transparent 75%, #26283a 75%);
+}
+html[data-theme='dark'] ::selection {
+  background: #3b3770;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

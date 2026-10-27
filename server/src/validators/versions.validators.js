@@ -16,6 +16,8 @@ export const listOutputsQuery = z.object({
   status: optionalEnum(['draft', 'approved']),
   search: searchText,
   sort: optionalEnum(['updated', 'created', 'title']),
+  // Every version of each output (the chat shows the exact version each message produced). Only with conversationId.
+  withVersions: z.preprocess((v) => v === true || v === 'true', z.boolean()).optional(),
   ...pageQuery,
 });
 

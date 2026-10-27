@@ -34,7 +34,7 @@ test('main app pages have no serious accessibility violations', async ({ page })
   test.setTimeout(300_000);
   await login(page);
   const report = [];
-  for (const route of ['/assistant', '/history', '/dashboard', '/clients', `/clients/${ids.client}`, `/clients/${ids.client}/brand`, '/jobs', `/jobs/${ids.job}`, '/tasks', `/tasks/${ids.task}`,
+  for (const route of ['/', '/history', '/dashboard', '/clients', `/clients/${ids.client}`, `/clients/${ids.client}/brand`, '/jobs', `/jobs/${ids.job}`, '/tasks', `/tasks/${ids.task}`,
     `/tasks/${ids.task}/workspace`, '/files', '/approved', '/search?q=a', '/image-presets', '/ai-instructions', '/team', '/settings/preferences']) {
     await page.goto(route);
     await page.waitForLoadState('networkidle');

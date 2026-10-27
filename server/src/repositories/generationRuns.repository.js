@@ -51,6 +51,15 @@ export async function countActiveRuns(tx, userId) {
   return rows[0].n;
 }
 
+/** Runs of a conversation that are still waiting or working. */
+export async function countActiveRunsInConversation(tx, conversationId) {
+  const { rows } = await tx.query(
+    `select count(*)::int as n from public.ai_workspace_generation_runs where conversation_id = $1 and status in ('queued', 'running')`,
+    [conversationId],
+  );
+  return rows[0].n;
+}
+
 /** queued → running. Returns null when the run is no longer queued. */
 export async function markRunning(tx, id) {
   const { rows } = await tx.query(
@@ -279,8 +288,11 @@ export async function getOutputWithCurrentVersion(tx, outputId) {
 
 export async function getOutputVersion(tx, outputId, versionId) {
   const { rows } = await tx.query(
-    `select id as version_id, version_number, content, sections, missing_info, image_meta, file_version_id
-       from public.ai_workspace_output_versions where id = $1 and output_id = $2`,
+    `select v.id as version_id, v.version_number, v.content, v.sections, v.missing_info, v.image_meta, v.file_version_id,
+            fv.storage_path as version_object_path
+       from public.ai_workspace_output_versions v
+       left join public.ai_workspace_file_versions fv on fv.id = v.file_version_id
+      where v.id = $1 and v.output_id = $2`,
     [versionId, outputId],
   );
   return rows[0] || null;
@@ -296,11 +308,13 @@ export async function markTaskInProgress(tx, taskId, userId) {
 /** The writing format most recently used in a conversation (conversation memory), or null. */
 export async function lastWritingFormat(tx, conversationId) {
   const { rows } = await tx.query(
-    `select request_options -> 'options' ->> 'format' as format
-       from public.ai_workspace_generation_runs
-      where conversation_id = $1 and tool_type = 'writing_editing'
-        and request_options -> 'options' ->> 'format' in ('email', 'sms', 'whatsapp', 'other')
-      order by started_at desc limit 1`,
+    `select r.request_options -> 'options' ->> 'format' as format
+       from public.ai_workspace_generation_runs r
+       left join public.ai_workspace_messages m on m.id = r.input_message_id
+      where r.conversation_id = $1 and r.tool_type = 'writing_editing'
+        and r.request_options -> 'options' ->> 'format' in ('email', 'sms', 'whatsapp', 'other')
+        and m.metadata ->> 'supersededAt' is null
+      order by r.started_at desc limit 1`,
     [conversationId],
   );
   return rows[0]?.format || null;

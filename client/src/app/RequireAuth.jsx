@@ -47,6 +47,6 @@ export function RedirectIfAuthed() {
   const status = useAuthStore((s) => s.status);
   const passwordRecovery = useAuthStore((s) => s.passwordRecovery);
   if (status === 'loading') return <SessionLoader />;
-  if (user) return <Navigate to={passwordRecovery ? '/settings/security' : '/dashboard'} replace />;
+  if (user) return <Navigate to={passwordRecovery ? '/settings/security' : '/'} replace />;
   return <Outlet />;
 }

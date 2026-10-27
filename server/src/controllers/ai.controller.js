@@ -43,10 +43,18 @@ export const vehicleGenerate = handler(async (req, res) =>
 /** POST /ai/images/generate */
 export const imagesGenerate = handler(async (req, res) => {
   const key = idempotencyKey(req);
-  const { editOutputId, ...options } = req.body.options || {};
+  const { editOutputId, editVersionId, ...options } = req.body.options || {};
   if (editOutputId) {
     // "Edit existing image" submitted to the generate endpoint → new version of that output
-    const body = { outputId: editOutputId, conversationId: req.body.conversationId, prompt: req.body.prompt, options, attachmentIds: req.body.attachmentIds };
+    const body = {
+      outputId: editOutputId,
+      versionId: editVersionId,
+      conversationId: req.body.conversationId,
+      replacesMessageId: req.body.replacesMessageId,
+      prompt: req.body.prompt,
+      options,
+      attachmentIds: req.body.attachmentIds,
+    };
     return send(res, await service.startImageEdit(req.user, body, { idempotencyKey: key }), accepted);
   }
   return send(res, await service.startGeneration(req.user, 'image', { ...req.body, options }, { idempotencyKey: key }), accepted);

@@ -40,7 +40,7 @@ export async function listOutputs(user, q) {
   const page = pagination(q, LIST_LIMITS);
   return getDatabase().withUser(user.id, async (tx) => {
     const { rows, total } = await outputsRepo.listOutputs(tx, { ...q, toolType: q.tool ? TOOL_TO_DB[q.tool] : undefined }, page);
-    return { data: await buildOutputDtos(tx, rows), meta: pageMeta(page, total) };
+    return { data: await buildOutputDtos(tx, rows, { withVersions: !!(q.withVersions && q.conversationId) }), meta: pageMeta(page, total) };
   });
 }
 

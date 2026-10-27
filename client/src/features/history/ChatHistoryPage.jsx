@@ -56,7 +56,7 @@ export default function ChatHistoryPage() {
         title="Chat history"
         description="Every email, message and image you created with the AI — find any chat by words, client or date."
         actions={
-          <Button as={Link} to="/assistant" variant="primary" icon={Plus}>
+          <Button as={Link} to="/" variant="primary" icon={Plus}>
             New chat
           </Button>
         }
@@ -166,7 +166,7 @@ export default function ChatHistoryPage() {
             filtered ? (
               <Button onClick={reset}>Clear filters</Button>
             ) : (
-              <Button as={Link} to="/assistant" variant="primary" icon={Plus}>
+              <Button as={Link} to="/" variant="primary" icon={Plus}>
                 New chat
               </Button>
             )
@@ -180,7 +180,7 @@ export default function ChatHistoryPage() {
               <ul className="card divide-y divide-line overflow-hidden">
                 {g.items.map((c) => (
                   <li key={c.id}>
-                    <Link to={`/assistant/c/${c.id}`} className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-canvas focus-ring">
+                    <Link to={`/chat/${c.id}`} className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-canvas focus-ring">
                       <ClientLogo client={c.client} size="md" />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-2">

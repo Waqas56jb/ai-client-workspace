@@ -377,7 +377,7 @@ function Workspace({ task, client, variant = 'task', fixedConversationId = null,
       setAttachments((a) => ({ ...a, [vars.tool]: [] }));
       if (vars.options?.editOutputId) setForms((f) => ({ ...f, image: { ...f.image, editOutputId: null } }));
       if (d?.conversation?.id && d.conversation.id !== selectedConv?.id) {
-        if (isAssistant) navigate(`/assistant/c/${d.conversation.id}`, { replace: true });
+        if (isAssistant) navigate(`/chat/${d.conversation.id}`, { replace: true });
         else updateParams({ conversation: d.conversation.id, tool: vars.tool });
       }
       if (isAssistant) qc.invalidateQueries({ queryKey: ['chat-history'] });

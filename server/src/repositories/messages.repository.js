@@ -50,6 +50,9 @@ export function toMessageDto(row) {
     tool: metaTool || toolId(row.tool_type),
     status: STATUS_BY_TYPE[row.message_type] || 'complete',
     outputIds: Array.isArray(meta.outputIds) ? meta.outputIds : [],
+    // The exact version each output got from this message (same order as outputIds; older messages have none).
+    versionIds: Array.isArray(meta.versionIds) ? meta.versionIds : [],
+    editedFromId: meta.replacesMessageId ?? null,
     options: meta.options ?? null,
     resolved: meta.resolved ?? (row.message_type === 'clarification' ? false : undefined),
     attachmentIds: Array.isArray(meta.attachmentIds) ? meta.attachmentIds : [],
@@ -124,6 +127,7 @@ export async function listMessagesForContext(tx, conversationId, limit = 20) {
        select id, role, content, message_type, metadata, created_at
          from ${T}
         where conversation_id = $1 and role <> 'system' and message_type not in ('status', 'error')
+          and metadata ->> 'supersededAt' is null
         order by created_at desc, id desc
         limit $2
      ) recent order by created_at asc, id asc`,
@@ -160,13 +164,33 @@ export async function listMessagesPage(tx, conversationId, { before, limit = 50 
   }
   const { rows } = await tx.query(
     `select ${MESSAGE_SELECT} from ${MESSAGE_FROM}
-      where m.conversation_id = $1 and m.role <> 'system' ${cursor}
+      where m.conversation_id = $1 and m.role <> 'system' and m.metadata ->> 'supersededAt' is null ${cursor}
       order by m.created_at desc, m.id desc
       limit $2`,
     params,
   );
   const hasMore = rows.length > limit;
   return { rows: rows.slice(0, limit).reverse(), hasMore };
+}
+
+/**
+ * "Edit an earlier message": hides `messageId` and every later message of the
+ * conversation from the chat and from the AI's memory. Nothing is deleted —
+ * the outputs those messages produced (and their approvals) stay in Files.
+ * @returns {Promise<number>} how many messages were hidden
+ */
+export async function supersedeFrom(tx, conversationId, messageId) {
+  const { rowCount } = await tx.query(
+    `update ${T} m
+        set metadata = m.metadata || jsonb_build_object('supersededAt', to_jsonb(clock_timestamp()), 'supersededBy', $3::text)
+       from ${T} b
+      where b.id = $2::uuid and b.conversation_id = $1
+        and m.conversation_id = $1 and m.role <> 'system'
+        and m.metadata ->> 'supersededAt' is null
+        and (m.created_at, m.id) >= (b.created_at, b.id)`,
+    [conversationId, messageId, messageId],
+  );
+  return rowCount;
 }
 
 /**

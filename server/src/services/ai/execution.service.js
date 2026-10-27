@@ -209,14 +209,16 @@ async function persist(tx, run, ctx, gen, model, startedAt) {
   const { ro, tool, task, client, instruction } = ctx;
   const userId = run.created_by;
   const outputIds = [];
+  const versionIds = [];
 
   if (ro.targetOutputId) {
     const o = gen.outputs[0];
     const note = ro.note || (ro.mode === 'revise' ? 'AI revision' : ro.mode === 'image_edit' ? 'AI edit of the previous version' : 'Regenerated');
     if (gen.kind === 'image') {
-      await outputService.addImageRevision(tx, { userId, outputId: ro.targetOutputId, finalImage: o.finalImage, originalImage: o.originalImage, imageMeta: o.imageMeta, note });
+      const r = await outputService.addImageRevision(tx, { userId, outputId: ro.targetOutputId, finalImage: o.finalImage, originalImage: o.originalImage, imageMeta: o.imageMeta, note });
+      versionIds.push(r.versionId);
     } else {
-      await outputService.addTextRevision(tx, {
+      const r = await outputService.addTextRevision(tx, {
         userId,
         outputId: ro.targetOutputId,
         content: o.content,
@@ -225,6 +227,7 @@ async function persist(tx, run, ctx, gen, model, startedAt) {
         note,
         sourceVersionId: ctx.target?.version_id || null,
       });
+      versionIds.push(r.versionId);
     }
     outputIds.push(ro.targetOutputId);
   } else {
@@ -241,6 +244,7 @@ async function persist(tx, run, ctx, gen, model, startedAt) {
           note: 'Initial generation',
         });
         outputIds.push(r.outputId);
+        versionIds.push(r.versionId);
       } else {
         const r = await outputService.createTextOutput(tx, {
           userId,
@@ -255,6 +259,7 @@ async function persist(tx, run, ctx, gen, model, startedAt) {
           note: 'Initial generation',
         });
         outputIds.push(r.outputId);
+        versionIds.push(r.versionId);
       }
     }
   }
@@ -274,7 +279,7 @@ async function persist(tx, run, ctx, gen, model, startedAt) {
     role: 'assistant',
     content: replyFor(ctx, gen, outputIds),
     messageType: 'response',
-    metadata: { tool, outputIds, requestMeta, generationId: run.id },
+    metadata: { tool, outputIds, versionIds, requestMeta, generationId: run.id },
     userId: null,
   });
   const succeeded = await runsRepo.markSucceeded(tx, run.id, {

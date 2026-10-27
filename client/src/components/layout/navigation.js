@@ -15,31 +15,42 @@ import {
   History,
 } from 'lucide-react';
 
+/**
+ * Pages behind the chat's "More" menu. The chat itself (/) is the home screen;
+ * job and task pages are kept for detailed project work under "Projects".
+ */
 export const NAV_SECTIONS = [
   {
     id: 'main',
-    label: 'Workspace',
+    label: 'Work',
     items: [
-      { to: '/assistant', label: 'AI Assistant', icon: MessageSquareText, highlight: true },
-      { to: '/history', label: 'Chat History', icon: History },
-      { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
+      { to: '/', label: 'Chat', icon: MessageSquareText, highlight: true, end: true },
+      { to: '/history', label: 'Chat history', icon: History },
       { to: '/clients', label: 'Clients', icon: Users },
-      { to: '/jobs', label: 'Jobs & Projects', icon: FolderKanban },
-      { to: '/tasks', label: 'Tasks', icon: ListChecks },
-      { to: '/ai-workspace', label: 'AI Workspace (tasks)', icon: Sparkles },
       { to: '/files', label: 'Files', icon: Files },
-      { to: '/approved', label: 'Approved Work', icon: BadgeCheck },
+      { to: '/approved', label: 'Approved work', icon: BadgeCheck },
       { to: '/search', label: 'Search', icon: Search },
     ],
   },
   {
     id: 'config',
-    label: 'Configuration',
+    label: 'Settings',
     items: [
-      { to: '/image-presets', label: 'Image Presets', icon: Frame },
-      { to: '/ai-instructions', label: 'AI Instructions', icon: SlidersHorizontal },
+      { to: '/image-presets', label: 'Image sizes', icon: Frame },
+      { to: '/ai-instructions', label: 'AI instructions', icon: SlidersHorizontal },
       { to: '/team', label: 'Team', icon: UsersRound },
       { to: '/settings', label: 'Settings', icon: Settings },
+    ],
+  },
+  {
+    id: 'projects',
+    label: 'Projects',
+    collapsed: true,
+    items: [
+      { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
+      { to: '/jobs', label: 'Jobs & projects', icon: FolderKanban },
+      { to: '/tasks', label: 'Tasks', icon: ListChecks },
+      { to: '/ai-workspace', label: 'AI workspace (tasks)', icon: Sparkles },
     ],
   },
 ];

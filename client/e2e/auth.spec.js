@@ -42,7 +42,7 @@ test.describe('authentication (real Supabase Auth + API)', () => {
     const problems = watchPage(page);
     await login(page, 'QA_MEMBER_A');
     await page.reload();
-    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page).toHaveURL(/:\d+\/$/); // the chat is the home screen
     await expect(page.getByText('QA Member A').first()).toBeVisible();
     await page.goto('/settings/security');
     await page.getByRole('button', { name: /log out/i }).first().click();
