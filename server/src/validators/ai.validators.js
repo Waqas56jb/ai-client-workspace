@@ -18,7 +18,7 @@ const scalar = (max) =>
     .optional()
     .default('');
 
-const attachmentIds = z.array(id).max(10).optional().default([]);
+const attachmentIds = z.array(id).max(20).optional().default([]);
 const base = {
   taskId: id,
   conversationId: id.optional(),
@@ -146,3 +146,25 @@ export const previewBody = z.object({
 });
 
 export const idempotencyKey = z.string().regex(/^[A-Za-z0-9._:-]{8,120}$/);
+
+const imageRef = z.union([z.object({ fileId: id }), z.object({ outputId: id, versionId: id })]);
+
+/** POST /ai/assistant/message — the chat: just a message, files and (optionally) a chosen picture. */
+export const assistantMessageBody = z.object({
+  taskId: id,
+  conversationId: id.optional(),
+  prompt: optText(8000),
+  attachmentIds,
+  imageRefs: z.array(imageRef).max(3).optional().default([]),
+  replacesMessageId: id.optional(),
+  options: z
+    .object({
+      format: z.enum(WRITING_FORMATS).optional(),
+      tone: optText(40),
+      presetId: id.optional().or(z.literal('').transform(() => undefined)),
+      width: dimension.optional(),
+      height: dimension.optional(),
+    })
+    .optional()
+    .default({}),
+});

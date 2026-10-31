@@ -29,11 +29,12 @@ const MIME_ALIASES = {
 const SNIFF_EQUIVALENTS = {
   [OOXML_DOCX]: [OOXML_DOCX, 'application/zip'],
   [OOXML_XLSX]: [OOXML_XLSX, 'application/zip'],
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/zip'],
   'application/msword': ['application/x-cfb', 'application/msword'],
   'application/vnd.ms-excel': ['application/x-cfb', 'application/vnd.ms-excel'],
 };
 
-const unsupported = (message = 'This file type is not supported. Use PNG, JPG, WebP, GIF, PDF, Word, Excel, CSV, Markdown or plain text files.') =>
+const unsupported = (message = 'This file type is not supported. Use PNG, JPG, WebP, GIF, PDF, Word, Excel, PowerPoint, CSV, Markdown or plain text files.') =>
   new AppError('UNSUPPORTED_FILE_TYPE', message, 415);
 
 /** Lower-cased extension of a file name without the dot ('' when none). */

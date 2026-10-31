@@ -2,6 +2,7 @@ import { badRequest } from '../utils/errors.js';
 import { handler, ok } from '../utils/response.js';
 import { idempotencyKey as idempotencySchema } from '../validators/ai.validators.js';
 import * as service from '../services/ai/generation.service.js';
+import * as assistant from '../services/ai/assistant.service.js';
 
 /**
  * AI endpoints. Generation is always asynchronous: POSTs respond 202 with a
@@ -76,3 +77,6 @@ export const regenerateOutput = handler(async (req, res) =>
 
 /** POST /ai/preview-request — prepared request without instruction text; no model call. */
 export const previewRequest = handler(async (req, res) => ok(res, await service.previewRequest(req.user, req.body)));
+
+/** POST /ai/assistant/message — 200 (answered / clarify) or 202 (queued). */
+export const assistantMessage = handler(async (req, res) => send(res, await assistant.handleAssistantMessage(req.user, req.body, { idempotencyKey: idempotencyKey(req) }), accepted));

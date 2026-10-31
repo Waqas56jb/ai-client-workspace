@@ -144,6 +144,7 @@ export const ACCEPTED_UPLOADS = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'document',
   'application/vnd.ms-excel': 'document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'document',
 };
 export const ACCEPT_ATTR = Object.keys(ACCEPTED_UPLOADS).join(',');
 export const IMAGE_ACCEPT_ATTR = 'image/png,image/jpeg,image/webp,image/gif';

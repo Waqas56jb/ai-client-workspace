@@ -13,10 +13,12 @@ import { env } from '../config/env.js';
 export const TEXT_MODELS = ['gpt-5.4-mini', 'gpt-5.4', 'gpt-5.4-nano', 'gpt-5.5', 'gpt-5-mini', 'gpt-5', 'gpt-4.1', 'gpt-4.1-mini'];
 
 export const IMAGE_MODELS = {
-  'gpt-image-2': { arbitrarySize: true, maxEdge: 3840, maxPixels: 3840 * 2160, multiple: 16, edit: true },
-  'gpt-image-1.5': { arbitrarySize: false, edit: true },
-  'gpt-image-1': { arbitrarySize: false, edit: true },
-  'gpt-image-1-mini': { arbitrarySize: false, edit: true },
+  // inputFidelity: the edit endpoint accepts input_fidelity ('high' keeps faces, products and details closer
+  // to the input). Per the SDK docs gpt-image-2 must omit it (it already works at high fidelity).
+  'gpt-image-2': { arbitrarySize: true, maxEdge: 3840, maxPixels: 3840 * 2160, multiple: 16, edit: true, inputFidelity: false },
+  'gpt-image-1.5': { arbitrarySize: false, edit: true, inputFidelity: true },
+  'gpt-image-1': { arbitrarySize: false, edit: true, inputFidelity: true },
+  'gpt-image-1-mini': { arbitrarySize: false, edit: true, inputFidelity: false },
 };
 
 export const STANDARD_IMAGE_SIZES = [

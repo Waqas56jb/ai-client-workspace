@@ -23,7 +23,7 @@ export function pendingGenerationOf(messages) {
     if (!m.generationId) return null;
     const answers = messages.slice(i + 1).filter((x) => x.role === 'assistant' && x.generationId === m.generationId);
     const open = !answers.some((a) => a.status === 'complete' || (a.status === 'error' && !a.resolved));
-    return open ? { generationId: m.generationId, tool: m.tool, promptMessageId: m.id, startedAt: m.createdAt } : null;
+    return open ? { generationId: m.generationId, tool: m.tool, intent: m.intent, promptMessageId: m.id, startedAt: m.createdAt } : null;
   }
   return null;
 }

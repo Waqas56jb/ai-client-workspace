@@ -11,6 +11,7 @@ import { AppError, badRequest, conflict, notFound } from '../utils/errors.js';
 import { clientSummary, iso, jobSummary, pageMeta, pagination, rangeInterval, taskSummary, userSummary } from '../utils/mappers.js';
 import { buildObjectPath, makePreviewJpeg, putObject, removeObjects, sha256, signedUrl } from './storage.service.js';
 import { logger } from '../utils/logger.js';
+import { extractDocument, extractSummary } from './documents.service.js';
 import { buildOutputDtos, displayFileName, signer, toVersionDto, versionText } from './output.service.js';
 
 /**
@@ -94,6 +95,8 @@ export async function buildFileDtos(tx, rows, { withOutputVersions = false, with
         output,
         conversation: f.conversation_id_ref ? { id: f.conversation_id_ref, title: f.conversation_title, taskId: f.conversation_task_id } : null,
         ...(previewUrl !== undefined ? { previewUrl } : {}),
+        // Document reading status: { status: ok | partial | failed | unsupported | model, chars, parts, error }
+        extract: f.current_extract || null,
       };
     }),
   );
@@ -170,6 +173,8 @@ export async function uploadFile(user, file, input) {
     throw new AppError('UNSUPPORTED_FILE_TYPE', 'Logos must be PNG, JPG, WebP or GIF images.', 415);
   }
   const displayName = uploadDisplayName(file.originalname);
+  // Documents are read once now so the chat can show "Ready" or an honest "couldn't read this".
+  const extract = detected.category !== 'image' ? extractSummary(await extractDocument(file.buffer, detected.mimeType)) : null;
   const checksum = sha256(file.buffer);
   const fileId = crypto.randomUUID();
   let uploadedPath = null;
@@ -216,7 +221,7 @@ export async function uploadFile(user, file, input) {
         checksum,
         note: 'Original upload',
         userId: user.id,
-        metadata: { originalFileName: displayName, ...(previewPath ? { previewPath } : {}) },
+        metadata: { originalFileName: displayName, ...(previewPath ? { previewPath } : {}), ...(extract ? { extract } : {}) },
       });
       await filesRepo.setCurrentFileVersion(tx, fileId, fv, user.id);
 

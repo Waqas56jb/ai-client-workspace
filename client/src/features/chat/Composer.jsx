@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowUp, ChevronDown, FileText, ImageIcon, Loader2, Mail, Paperclip, RotateCw, SlidersHorizontal, Wand2, X } from 'lucide-react';
-import { FILE_ACCEPT, PHOTO_ACCEPT } from '@/lib/fileValidation';
+import { toast } from 'sonner';
+import { AlertCircle, ArrowUp, ChevronDown, FileText, FolderUp, ImageIcon, Loader2, Paperclip, RotateCw, SlidersHorizontal, Wand2, X } from 'lucide-react';
+import { FILE_ACCEPT, usableFolderFiles } from '@/lib/fileValidation';
 import { cn, formatBytes } from '@/lib/utils';
 
 export const FORMATS = [
@@ -39,7 +40,7 @@ function AttachmentChip({ item, onRemove, onRetry }) {
           </>
         )}
         {item.status === 'waiting' && <span className="mt-0.5 block text-[13px] text-muted">Getting ready…</span>}
-        {item.status === 'ready' && <span className="block text-[13px] text-success">Ready to send · {formatBytes(item.size)}</span>}
+        {item.status === 'ready' && <ReadyNote item={item} />}
         {bad && <span className="block text-[13px] leading-4 text-danger">{item.error}</span>}
       </span>
       {item.status === 'error' && (
@@ -51,6 +52,20 @@ function AttachmentChip({ item, onRemove, onRetry }) {
         <X size={18} />
       </button>
     </li>
+  );
+}
+
+/** "Ready" for photos; for documents also whether their text could be read. */
+function ReadyNote({ item }) {
+  const e = item.extract;
+  if (e && (e.status === 'failed' || e.status === 'unsupported')) {
+    return <span className="block text-[13px] leading-4 text-warning">Can’t be read: {e.error}</span>;
+  }
+  const what = !e || item.isImage || e.status === 'model' ? 'Ready to send' : e.status === 'partial' ? 'Read (only the first part — it is very long)' : `Read · ready to send`;
+  return (
+    <span className="block text-[13px] text-success">
+      {what} · {formatBytes(item.size)}
+    </span>
   );
 }
 
@@ -69,7 +84,7 @@ function ReferenceChip({ entry, note, onRemove }) {
   );
 }
 
-function OptionsPopover({ mode, writing, onWriting, presets, presetsLoading, presetId, onPreset, onClose }) {
+function OptionsPopover({ writing, onWriting, presets, presetsLoading, presetId, onPreset, onClose }) {
   const ref = useRef(null);
   useEffect(() => {
     const onDown = (e) => !ref.current?.contains(e.target) && !e.target.closest?.('[data-options-trigger]') && onClose();
@@ -84,49 +99,45 @@ function OptionsPopover({ mode, writing, onWriting, presets, presetsLoading, pre
   const select = 'h-12 w-full rounded-xl border border-line bg-surface px-3 text-[16px] text-ink outline-none focus:border-brand focus:ring-3 focus:ring-brand/15';
   return (
     <div ref={ref} role="dialog" aria-label="Options" className="absolute bottom-full left-0 z-30 mb-2 w-[min(360px,calc(100vw-2rem))] space-y-4 rounded-2xl border border-line bg-surface p-4 shadow-pop">
-      {mode === 'writing' ? (
-        <>
-          <div>
-            <p className="mb-2 text-[15px] font-semibold text-ink">What is it?</p>
-            <div role="radiogroup" aria-label="Format" className="flex flex-wrap gap-2">
-              {FORMATS.map((f) => (
-                <button
-                  key={f.value || 'ask'}
-                  type="button"
-                  role="radio"
-                  aria-checked={writing.format === f.value}
-                  onClick={() => onWriting({ format: f.value })}
-                  className={cn('h-11 rounded-full border px-4 text-[15px] font-medium focus-ring', writing.format === f.value ? 'border-brand bg-brand-soft text-brand' : 'border-line text-ink hover:bg-canvas')}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <label className="block">
-            <span className="mb-2 block text-[15px] font-semibold text-ink">Tone</span>
-            <select className={select} value={writing.tone} onChange={(e) => onWriting({ tone: e.target.value })}>
-              {TONES.map((t) => (
-                <option key={t.value || 'default'} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </>
-      ) : (
-        <label className="block">
-          <span className="mb-2 block text-[15px] font-semibold text-ink">Picture size</span>
-          <select className={select} value={presetId} onChange={(e) => onPreset(e.target.value)} disabled={presetsLoading || !presets.length}>
-            {presetsLoading && <option>Loading sizes…</option>}
-            {presets.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} · {p.width} × {p.height}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      <p className="text-[14px] leading-5 text-muted">Used when they apply — you can also just say it in your message.</p>
+      <div>
+        <p className="mb-2 text-[15px] font-semibold text-ink">Messages: email, SMS or WhatsApp?</p>
+        <div role="radiogroup" aria-label="Format" className="flex flex-wrap gap-2">
+          {FORMATS.map((f) => (
+            <button
+              key={f.value || 'ask'}
+              type="button"
+              role="radio"
+              aria-checked={writing.format === f.value}
+              onClick={() => onWriting({ format: f.value })}
+              className={cn('h-11 rounded-full border px-4 text-[15px] font-medium focus-ring', writing.format === f.value ? 'border-brand bg-brand-soft text-brand' : 'border-line text-ink hover:bg-canvas')}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <label className="block">
+        <span className="mb-2 block text-[15px] font-semibold text-ink">Tone</span>
+        <select className={select} value={writing.tone} onChange={(e) => onWriting({ tone: e.target.value })}>
+          {TONES.map((t) => (
+            <option key={t.value || 'default'} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block">
+        <span className="mb-2 block text-[15px] font-semibold text-ink">Size for new pictures</span>
+        <select className={select} value={presetId} onChange={(e) => onPreset(e.target.value)} disabled={presetsLoading || !presets.length}>
+          {presetsLoading && <option>Loading sizes…</option>}
+          {presets.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name} · {p.width} × {p.height}
+            </option>
+          ))}
+        </select>
+      </label>
       <button type="button" onClick={onClose} className="h-11 w-full rounded-xl bg-brand text-[15px] font-semibold text-white hover:bg-brand-hover focus-ring">
         Done
       </button>
@@ -135,7 +146,8 @@ function OptionsPopover({ mode, writing, onWriting, presets, presetsLoading, pre
 }
 
 /**
- * The one place to type. Visible choices: Add photo or file · Write / Image · Options · Send.
+ * The one place to type — ask anything, paste a draft, describe a picture, add a photo.
+ * Visible choices: Add photo or file · Options · Send. The server works out the rest.
  */
 export function Composer({
   value,
@@ -143,8 +155,6 @@ export function Composer({
   onSubmit,
   sending,
   blockedReason,
-  mode,
-  onModeChange,
   writing,
   onWriting,
   presets,
@@ -161,6 +171,7 @@ export function Composer({
   fileInputRef,
 }) {
   const ownFileRef = useRef(null);
+  const folderRef = useRef(null);
   const fileRef = fileInputRef || ownFileRef;
   const localRef = useRef(null);
   const ta = textareaRef || localRef;
@@ -174,13 +185,10 @@ export function Composer({
   }, [value, ta]);
 
   const preset = presets.find((p) => p.id === presetId);
-  const optionsLabel =
-    mode === 'writing'
-      ? [FORMATS.find((f) => f.value === writing.format)?.label, writing.tone || null].filter(Boolean).join(' · ')
-      : preset
-        ? `${preset.name}`
-        : 'Picture size';
-  const canSend = !sending && !blockedReason && !!value.trim() && !uploads.uploading && !uploads.failed;
+  const optionsLabel = [writing.format ? FORMATS.find((f) => f.value === writing.format)?.label : null, writing.tone || null, preset ? `${preset.width}×${preset.height}` : null]
+    .filter(Boolean)
+    .join(' · ');
+  const canSend = !sending && !blockedReason && (!!value.trim() || uploads.readyIds.length > 0) && !uploads.uploading && !uploads.failed;
 
   const onKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -230,7 +238,7 @@ export function Composer({
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
-          placeholder={mode === 'image' ? 'Describe the picture, or what to change…' : 'Paste your draft or say what to write…'}
+          placeholder="Ask anything, paste a draft, describe a picture, or add a photo…"
           className="block max-h-[40vh] min-h-[60px] w-full resize-none bg-transparent px-5 pb-2 pt-4 text-[17px] leading-[1.55] text-ink outline-none placeholder:text-subtle"
         />
         <div className="relative flex flex-wrap items-center gap-2 px-3 pb-3">
@@ -238,7 +246,7 @@ export function Composer({
             ref={fileRef}
             type="file"
             multiple
-            accept={mode === 'image' ? PHOTO_ACCEPT : FILE_ACCEPT}
+            accept={FILE_ACCEPT}
             className="hidden"
             data-testid="chat-file-input"
             onChange={(e) => {
@@ -256,23 +264,30 @@ export function Composer({
             <span className="sm:hidden">Add</span>
             <span className="hidden sm:inline">Add photo or file</span>
           </button>
-          <div role="radiogroup" aria-label="Write or image" className="inline-flex h-11 rounded-full border border-line bg-canvas p-1">
-            {[
-              { id: 'writing', label: 'Write', icon: Mail },
-              { id: 'image', label: 'Image', icon: ImageIcon },
-            ].map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                role="radio"
-                aria-checked={mode === m.id}
-                onClick={() => onModeChange(m.id)}
-                className={cn('inline-flex items-center gap-1.5 rounded-full px-3.5 text-[15px] font-semibold transition-colors focus-ring', mode === m.id ? 'bg-surface text-ink shadow-card' : 'text-muted hover:text-ink')}
-              >
-                <m.icon size={17} aria-hidden /> {m.label}
-              </button>
-            ))}
-          </div>
+          <input
+            ref={folderRef}
+            type="file"
+            multiple
+            webkitdirectory=""
+            className="hidden"
+            data-testid="chat-folder-input"
+            onChange={(e) => {
+              const { ok, skipped } = usableFolderFiles(e.target.files);
+              if (skipped) toast(`${skipped} file${skipped > 1 ? 's' : ''} in the folder can’t be used here and ${skipped > 1 ? 'were' : 'was'} skipped.`);
+              if (ok.length) uploads.add(ok);
+              else toast.error('No usable files in that folder.');
+              e.target.value = '';
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => folderRef.current?.click()}
+            aria-label="Add a folder"
+            title="Add a whole folder"
+            className="hidden h-11 items-center gap-1.5 rounded-full px-3 text-[15px] font-medium text-muted hover:bg-canvas hover:text-ink focus-ring sm:inline-flex"
+          >
+            <FolderUp size={18} aria-hidden /> Folder
+          </button>
           <button
             type="button"
             data-options-trigger
@@ -286,7 +301,6 @@ export function Composer({
           </button>
           {optionsOpen && (
             <OptionsPopover
-              mode={mode}
               writing={writing}
               onWriting={onWriting}
               presets={presets}
@@ -301,11 +315,11 @@ export function Composer({
             type="button"
             onClick={onSubmit}
             disabled={!canSend}
-            aria-label={mode === 'image' ? 'Create image' : 'Send'}
+            aria-label="Send"
             className="inline-flex h-12 items-center gap-2 rounded-full bg-brand px-5 text-[16px] font-semibold text-white shadow-[0_1px_2px_rgba(81,69,208,0.35)] transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-line-strong disabled:text-muted disabled:shadow-none focus-ring"
           >
             {sending ? <Loader2 size={19} className="animate-spin" aria-hidden /> : <ArrowUp size={19} aria-hidden />}
-            {sending ? 'Sending…' : mode === 'image' ? 'Create' : 'Send'}
+            {sending ? 'Sending…' : 'Send'}
           </button>
         </div>
       </div>

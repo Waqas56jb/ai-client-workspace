@@ -79,21 +79,15 @@ const DEICTIC_RE = /\b(?:this|that|the|same|previous|last|above|earlier|first|my
 const PHOTO_WORDS_RE = /\b(?:attach(?:ed|ing)?|my (?:photo|picture|image|logo)|this (?:photo|picture|image)|the (?:photo|picture|image) (?:above|i (?:sent|added|attached)))\b/i;
 
 /**
- * Which earlier image the text is talking about, if any:
- *   "use Image 2 …"                      → Image 2 (reason 'label')
- *   "make the image above blue" (Image mode) → the most recent image (reason 'recent')
- * Returns null when nothing in THIS chat matches; the caller shows the result as a
- * removable chip so the user always sees which picture will be used.
+ * "use Image 2 …" → Image 2, shown as a removable chip so the user sees which
+ * picture will be used. Vaguer references ("the image above", "the original") are
+ * worked out by the server from the whole chat.
  */
-export function suggestImageReference(text, index, mode) {
+export function suggestImageReference(text, index) {
   if (!text || !index?.list.length) return null;
   const m = text.match(LABEL_RE);
-  if (m) {
-    const entry = index.list[Number(m[1]) - 1];
-    return entry ? { entry, reason: 'label' } : null;
-  }
-  if (mode === 'image' && DEICTIC_RE.test(text)) return { entry: index.list[index.list.length - 1], reason: 'recent' };
-  return null;
+  const entry = m ? index.list[Number(m[1]) - 1] : null;
+  return entry ? { entry, reason: 'label' } : null;
 }
 
 /** True when the text talks about a photo the user seems to mean to add ("if I attach an image…"). */

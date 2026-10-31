@@ -53,6 +53,9 @@ export function toMessageDto(row) {
     // The exact version each output got from this message (same order as outputIds; older messages have none).
     versionIds: Array.isArray(meta.versionIds) ? meta.versionIds : [],
     editedFromId: meta.replacesMessageId ?? null,
+    memoryUpdates: meta.memoryUpdates ?? null,
+    // what the assistant decided for this message (answer | write | generate_image | edit_image | clarify | unsupported)
+    intent: (typeof meta.intent === 'string' ? meta.intent : meta.intent?.action) ?? null,
     options: meta.options ?? null,
     resolved: meta.resolved ?? (row.message_type === 'clarification' ? false : undefined),
     attachmentIds: Array.isArray(meta.attachmentIds) ? meta.attachmentIds : [],
@@ -185,7 +188,7 @@ export async function supersedeFrom(tx, conversationId, messageId) {
         set metadata = m.metadata || jsonb_build_object('supersededAt', to_jsonb(clock_timestamp()), 'supersededBy', $3::text)
        from ${T} b
       where b.id = $2::uuid and b.conversation_id = $1
-        and m.conversation_id = $1 and m.role <> 'system'
+        and m.conversation_id = $1
         and m.metadata ->> 'supersededAt' is null
         and (m.created_at, m.id) >= (b.created_at, b.id)`,
     [conversationId, messageId, messageId],

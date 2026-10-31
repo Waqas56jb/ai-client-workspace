@@ -1,7 +1,8 @@
 import { DEFAULT_INSTRUCTIONS } from '../../constants/defaults.js';
 import { TOOL_TO_DB } from '../../constants/domain.js';
-import { MAX_REFERENCE_CHARS, UPLOAD_TYPES } from '../../constants/files.js';
-import { AppError, notFound } from '../../utils/errors.js';
+import { MAX_REFERENCE_CHARS, MAX_REFERENCE_TOTAL_CHARS } from '../../constants/files.js';
+import { extractDocument } from '../documents.service.js';
+import { AppError, badRequest, notFound } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import { getObject } from '../storage.service.js';
 import * as runsRepo from '../../repositories/generationRuns.repository.js';
@@ -9,6 +10,8 @@ import { getConversationScoped, listMessagesForContext } from '../../repositorie
 import { getInstructionRow } from '../../repositories/instructions.repository.js';
 import { getPresetRow } from '../../repositories/presets.repository.js';
 import { normaliseInstruction } from './prompt.builder.js';
+import { buildImageRegistry } from './imageRegistry.js';
+import { latestSummary } from './memory.service.js';
 
 /**
  * Resolves TRUSTED generation context from the database inside the caller's
@@ -18,7 +21,6 @@ import { normaliseInstruction } from './prompt.builder.js';
  */
 
 export const REFERENCE_IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp'];
-const isTextual = (mime) => !!UPLOAD_TYPES[mime]?.textual;
 
 /** task → job → client. 404 when the task does not exist (or is archived). */
 export async function loadTaskScope(tx, taskId) {
@@ -85,11 +87,59 @@ export async function loadHistory(tx, conversationId, { excludeIds = [] } = {}) 
   // carry the draft it actually produced, so follow-ups like "make it shorter" work.
   const outputIds = [...new Set(rows.flatMap((m) => (m.role === 'assistant' ? m.metadata?.outputIds || [] : [])))];
   const drafts = await outputTextsForContext(tx, outputIds);
-  return rows.slice(-HISTORY_MESSAGES).map((m) => {
+  // Pictures are named the way the chat shows them ("Image 3"), so "the first image" stays resolvable.
+  const registry = await buildImageRegistry(tx, conversationId);
+  const labels = new Map();
+  for (const e of registry.list) {
+    if (!labels.has(e.messageId)) labels.set(e.messageId, []);
+    labels.get(e.messageId).push(e.kind === 'upload' ? `[Added ${e.label}: ${e.name}]` : `[Made ${e.label}: ${e.name}, version ${e.versionNumber}]`);
+  }
+  const toItem = (m) => {
     const produced = m.role === 'assistant' ? (m.metadata?.outputIds || []).map((id) => drafts.get(id)).filter(Boolean) : [];
-    const content = produced.length ? [m.content, ...produced].join('\n\n') : m.content;
+    const content = [m.content, ...(labels.get(m.id) || []), ...produced].filter(Boolean).join('\n\n');
     return { role: m.role, content, messageType: m.message_type };
-  });
+  };
+  const recent = rows.slice(-HISTORY_MESSAGES).map(toItem);
+  // A long chat keeps its first request (the original goal) and the summary of everything older.
+  const first = registry.messages.find((m) => m.role === 'user' && !excludeIds.includes(m.id));
+  if (first && !rows.slice(-HISTORY_MESSAGES).some((m) => m.id === first.id)) {
+    const summary = await latestSummary(tx, conversationId);
+    if (summary) recent.unshift({ role: 'assistant', content: `(Summary of the earlier part of this chat)\n${summary.content}`, messageType: 'summary', pinned: true });
+    recent.unshift({ role: 'user', content: `(First request in this chat) ${first.content}`, messageType: 'prompt', pinned: true });
+  }
+  return recent;
+}
+
+/**
+ * Pictures given to the image model or the vision model, re-checked inside the
+ * caller's RLS transaction: an uploaded photo of this task/client ({ fileId }) or a
+ * stored version of an image output of this task ({ outputId, versionId }).
+ * @returns {Promise<Array<{ fileId?, outputId?, versionId?, role, objectPath, mimeType, name, imageMeta? }>>}
+ */
+export async function loadImageInputs(tx, refs, task) {
+  const out = [];
+  for (const ref of (refs || []).slice(0, 8)) {
+    const role = ref.role === 'source' ? 'source' : 'reference';
+    if (ref.fileId) {
+      const [f] = await loadAttachments(tx, [ref.fileId], task);
+      if (!REFERENCE_IMAGE_MIMES.includes(f.mime_type)) throw badRequest(`“${f.file_name}” is not a picture the AI can use. Please use a JPG, PNG or WebP picture.`);
+      out.push({ fileId: f.id, role, objectPath: f.object_path, mimeType: f.mime_type, name: f.file_name });
+    } else if (ref.versionId && ref.outputId) {
+      const o = await runsRepo.getOutputWithCurrentVersion(tx, ref.outputId);
+      if (!o || o.task_id !== task.id || o.output_kind !== 'image') throw notFound('Image');
+      const v = await runsRepo.getOutputVersion(tx, o.id, ref.versionId);
+      if (!v?.version_object_path) throw notFound('Image');
+      out.push({ outputId: o.id, versionId: v.version_id, role, objectPath: v.version_object_path, mimeType: 'image/png', name: o.title, imageMeta: v.image_meta || {} });
+    } else {
+      throw badRequest('An image reference is incomplete.');
+    }
+  }
+  return out;
+}
+
+/** Bytes of loaded image inputs (call outside the transaction). */
+export async function fetchImageInputs(inputs) {
+  return Promise.all(inputs.map(async (i) => ({ ...i, buffer: await getObject(i.objectPath) })));
 }
 
 /** Current text of the outputs referenced in the history (same conversation, RLS-scoped). */
@@ -122,17 +172,30 @@ async function outputTextsForContext(tx, outputIds) {
 export async function fetchAttachmentContent(attachments, { includeImages = false } = {}) {
   const references = [];
   const images = [];
+  const pdfs = [];
+  const unreadable = [];
+  let budget = MAX_REFERENCE_TOTAL_CHARS;
   for (const f of attachments) {
     if (!f.object_path) continue;
-    if (isTextual(f.mime_type)) {
-      const buf = await getObject(f.object_path);
-      references.push({ id: f.id, name: f.file_name, text: buf.toString('utf8').slice(0, MAX_REFERENCE_CHARS) });
-    } else if (includeImages && REFERENCE_IMAGE_MIMES.includes(f.mime_type)) {
-      const buf = await getObject(f.object_path);
-      images.push({ id: f.id, name: f.file_name, buffer: buf, mimeType: f.mime_type });
+    if (REFERENCE_IMAGE_MIMES.includes(f.mime_type) || f.file_category === 'image') {
+      if (includeImages && REFERENCE_IMAGE_MIMES.includes(f.mime_type)) images.push({ id: f.id, name: f.file_name, buffer: await getObject(f.object_path), mimeType: f.mime_type });
+      continue;
     }
+    if (f.mime_type === 'application/pdf') {
+      pdfs.push({ id: f.id, name: f.file_name, buffer: await getObject(f.object_path) });
+      continue;
+    }
+    // Word, Excel, PowerPoint, CSV, text: the real text, within a per-file and per-request budget.
+    const doc = await extractDocument(await getObject(f.object_path), f.mime_type);
+    if (!doc.text) {
+      unreadable.push({ id: f.id, name: f.file_name, reason: doc.error || 'No readable text.' });
+      continue;
+    }
+    const text = doc.text.slice(0, Math.max(0, Math.min(MAX_REFERENCE_CHARS, budget)));
+    budget -= text.length;
+    references.push({ id: f.id, name: f.file_name, text, partial: doc.truncated || text.length < doc.text.length });
   }
-  return { references, images };
+  return { references, images, pdfs, unreadable };
 }
 
 /** Client logo bytes (only the task's own client). Null when none / unreadable. */

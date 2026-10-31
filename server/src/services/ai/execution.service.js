@@ -11,15 +11,20 @@ import { getObject, removeObjects } from '../storage.service.js';
 import {
   fetchAttachmentContent,
   fetchClientLogo,
+  fetchImageInputs,
   loadAttachments,
   loadHistory,
+  loadImageInputs,
   loadInstruction,
   loadPreset,
   loadTaskScope,
 } from './context.service.js';
-import { buildImagePrompt, buildTextRequest } from './prompt.builder.js';
+import { buildAnswerRequest, buildImageEditPrompt, buildImagePrompt, buildTextRequest } from './prompt.builder.js';
 import { generateText, maxOutputTokens } from './text.service.js';
 import { processGeneratedImage, requestImages } from './image.service.js';
+import { changeCheck, editStrategy, toPng } from './imageProcessing.js';
+import sharp from 'sharp';
+import { clientMemories, maybeSummarise } from './memory.service.js';
 import {
   WRITING_FORMAT_LABELS,
   advertisingTitle,
@@ -90,14 +95,19 @@ async function loadRunContext(tx, run) {
     }
   }
   const logo = tool === 'image' && options.overlayLogo ? await fetchClientLogo(tx, client) : null;
-  return { ro, tool, task, job, client, instruction, preset, attachments, history, workspace, target, logo };
+  // Pictures chosen by the assistant (edit source, references, pictures to look at) — re-checked here.
+  const imageInputs = await loadImageInputs(tx, ro.imageInputs || [], task);
+  const vision = await loadImageInputs(tx, ro.vision || [], task);
+  const memories = tool === 'image' ? [] : await clientMemories(tx, client.id);
+  return { ro, tool, task, job, client, instruction, preset, attachments, history, workspace, target, logo, imageInputs, vision, memories };
 }
 
 // ── Phase 2: model calls ───────────────────────────────────────────────────────
 
 async function runText(ctx, model) {
   const { ro, tool, task, job, client, instruction, history, workspace, target } = ctx;
-  const { references } = await fetchAttachmentContent(ctx.attachments);
+  const files = await fetchAttachmentContent(ctx.attachments);
+  const { references } = files;
   const isRevision = ro.mode === 'revise';
   const options = ro.options || {};
   const { instructions, input } = buildTextRequest({
@@ -112,8 +122,10 @@ async function runText(ctx, model) {
     history,
     references,
     revision: isRevision ? { content: versionText(target) } : null,
+    memories: ctx.memories,
+    files,
   });
-  const result = await generateText({ model, instructions, input, maxTokens: maxOutputTokens(instruction) });
+  const result = await generateText({ model, instructions, input: withPdfs(input, files.pdfs), maxTokens: maxOutputTokens(instruction) });
 
   let output;
   if (tool === 'advertising') {
@@ -129,6 +141,31 @@ async function runText(ctx, model) {
   return { kind: 'text', outputs: [output], result };
 }
 
+/** Direct chat answer: text model, chat memory, documents, and the pictures it must look at. */
+/** Text input plus any PDFs as files the model reads itself (text and scanned pages). */
+function withPdfs(text, pdfs = []) {
+  if (!pdfs.length) return text;
+  return [{ role: 'user', content: [{ type: 'input_text', text }, ...pdfs.map((d) => ({ type: 'input_file', filename: d.name, file_data: `data:application/pdf;base64,${d.buffer.toString('base64')}` }))] }];
+}
+
+async function runAnswer(ctx, model) {
+  const { ro, task, job, client, history, workspace } = ctx;
+  const files = await fetchAttachmentContent(ctx.attachments);
+  const { references } = files;
+  const pictures = await fetchImageInputs(ctx.vision);
+  const docs = files.pdfs;
+  const labels = pictures.map((p) => p.label || p.name);
+  const { instructions, input } = buildAnswerRequest({ client, job, task, workspace, prompt: ro.prompt, history, references, imageLabels: labels, memories: ctx.memories, files });
+  const content = [{ type: 'input_text', text: input }];
+  for (const p of pictures) {
+    const jpg = await sharp(p.buffer).rotate().resize({ width: 1536, height: 1536, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+    content.push({ type: 'input_image', image_url: `data:image/jpeg;base64,${jpg.toString('base64')}`, detail: 'auto' });
+  }
+  for (const d of docs) content.push({ type: 'input_file', filename: d.name, file_data: `data:application/pdf;base64,${d.buffer.toString('base64')}` });
+  const result = await generateText({ model, instructions, input: [{ role: 'user', content }], maxTokens: 4000 });
+  return { kind: 'answer', outputs: [], answer: result.text, result };
+}
+
 function versionText(v) {
   if (!v) return '';
   if (Array.isArray(v.sections) && v.sections.length) return v.sections.map((s) => `${s.label}: ${s.text}`).join('\n');
@@ -141,7 +178,7 @@ async function runImage(ctx, model) {
   const width = Number(options.width);
   const height = Number(options.height);
   const isEdit = ro.mode === 'image_edit';
-  const { references, images } = await fetchAttachmentContent(ctx.attachments, { includeImages: true });
+  let { references, images } = await fetchAttachmentContent(ctx.attachments, { includeImages: true }); // eslint-disable-line prefer-const
 
   let refImages = images;
   if (isEdit) {
@@ -149,14 +186,31 @@ async function runImage(ctx, model) {
     // The image being edited first, then any attached reference images (max 16 inputs).
     refImages = [{ buffer: await getObject(target.version_object_path), mimeType: 'image/png', name: 'current.png' }, ...images].slice(0, 16);
   }
-  const prompt = buildImagePrompt({ instruction, client, job, task, prompt: ro.prompt, preset, width, height, references, edit: isEdit });
-  const count = ro.targetOutputId ? 1 : Math.min(4, Math.max(1, Number(options.count) || 1));
-  const quality = options.quality || instruction.modelConfiguration?.quality || 'medium';
-  const gen = await requestImages({ model, prompt, count, width, height, quality, references: refImages });
+  // Pictures picked by the assistant: an uploaded photo to edit (role 'source') and references.
+  const inputs = await fetchImageInputs(ctx.imageInputs);
+  const photoSource = ro.mode === 'photo_edit' ? inputs.find((i) => i.role === 'source') : null;
+  if (ro.mode === 'photo_edit' && !photoSource) throw new AppError('NOT_FOUND', 'The photo to edit could not be found.', 404);
+  // Files attached with this message that are already inputs (e.g. the photo being edited) are not sent twice.
+  images = images.filter((img) => !inputs.some((x) => x.fileId === img.id));
+  const inputRefs = inputs.filter((i) => i !== photoSource).map((i) => ({ buffer: i.buffer, mimeType: i.mimeType, name: i.name }));
+  if (photoSource) refImages = [{ buffer: photoSource.buffer, mimeType: photoSource.mimeType, name: photoSource.name }, ...inputRefs, ...images].slice(0, 16);
+  else if (isEdit) refImages = [...refImages, ...inputRefs].slice(0, 16);
+  else refImages = [...inputRefs, ...images].slice(0, 16);
 
-  const strategy = preset?.resize_strategy || 'cover';
+  // A faithful edit (assistant) uses its own prompt: what to change, what to keep — no preset layout.
+  const faithful = !!ro.edit && (isEdit || !!photoSource);
+  const prompt = faithful
+    ? buildImageEditPrompt({ client, change: ro.edit.change || ro.prompt, preserve: ro.edit.preserve, scope: ro.edit.scope, useBrandStyle: ro.edit.useBrandStyle, width, height, references: refImages.length - 1 })
+    : buildImagePrompt({ instruction, client, job, task, prompt: ro.prompt, preset, width, height, references, edit: isEdit || !!photoSource });
+  const count = ro.targetOutputId || photoSource ? 1 : Math.min(4, Math.max(1, Number(options.count) || 1));
+  const quality = options.quality || instruction.modelConfiguration?.quality || (faithful ? 'high' : 'medium');
+  const gen = await requestImages({ model, prompt, count, width, height, quality, references: refImages, faithful: faithful || isEdit || !!photoSource });
+
+  const sourceBuffer = isEdit || photoSource ? refImages[0].buffer : null;
   const outputs = [];
   for (let i = 0; i < gen.buffers.length; i += 1) {
+    // Edits never crop or stretch the subject: same shape → uniform resize, otherwise the canvas is extended.
+    const strategy = sourceBuffer ? editStrategy(gen.size.width, gen.size.height, width, height) : preset?.resize_strategy || 'cover';
     const processed = await processGeneratedImage(gen.buffers[i], {
       width,
       height,
@@ -169,7 +223,20 @@ async function runImage(ctx, model) {
       prompt: ro.prompt,
       size: gen.size,
     });
-    const baseTitle = target?.title || imageTitle(ro.prompt);
+    if (sourceBuffer) {
+      // Honest change check against the picture that was edited (coarse: global similarity + changed area).
+      const check = await changeCheck(await toPng(sourceBuffer).then((x) => x.buffer), processed.finalImage.buffer);
+      processed.imageMeta = {
+        ...processed.imageMeta,
+        changeCheck: check,
+        inputFidelity: gen.inputFidelity,
+        editedFrom: ro.edit?.sourceLabel || null,
+        sourceFileId: photoSource?.fileId || null,
+        sourceVersionId: isEdit ? target?.version_id || null : null,
+        editScope: ro.edit?.scope || null,
+      };
+    }
+    const baseTitle = target?.title || (photoSource ? imageTitle(ro.edit?.title || ro.edit?.change || ro.prompt) : imageTitle(ro.prompt));
     outputs.push({ ...processed, title: gen.buffers.length > 1 ? `${baseTitle} (${String.fromCharCode(65 + i)})` : baseTitle });
   }
   return { kind: 'image', outputs, result: { model, providerRequestId: gen.providerRequestId, usage: gen.usage, size: gen.size } };
@@ -188,7 +255,11 @@ function replyFor(ctx, gen, outputIds) {
   const options = ro.options || {};
   if (ro.mode === 'revise') return `Revised “${gen.outputs[0].title}” — saved as a new draft version.`;
   if (ro.mode === 'regenerate') return `Regenerated “${gen.outputs[0].title}” as a new draft version.`;
-  if (ro.mode === 'image_edit') return `Edited “${gen.outputs[0].title}” — saved as a new draft version at ${options.width} × ${options.height}px.`;
+  if (ro.mode === 'image_edit' || ro.mode === 'photo_edit') {
+    const o = gen.outputs[0];
+    const what = ro.mode === 'image_edit' ? `Edited ${ro.edit?.sourceLabel || `“${o.title}”`} — saved as a new draft version` : `Edited ${ro.edit?.sourceLabel || 'your photo'} — saved as a new picture (your photo is unchanged)`;
+    return `${what} at ${o.imageMeta.actualWidth} × ${o.imageMeta.actualHeight}px.${changeNote(o.imageMeta.changeCheck, ro.edit?.scope, ro.edit?.change)}`;
+  }
   if (tool === 'image') {
     const n = outputIds.length;
     return `Created ${n} image${n > 1 ? 's' : ''} at ${options.width} × ${options.height}px for ${client.name}${ctx.preset ? ` using the “${ctx.preset.name}” preset` : ''}.`;
@@ -205,9 +276,23 @@ function replyFor(ctx, gen, outputIds) {
   return `Here is ${/^(e|sms|a|o|i|u)/i.test(noun) ? 'an' : 'a'} ${noun} in ${client.name}’s voice.`;
 }
 
+/** One honest sentence about how much of the picture changed (the check is coarse). */
+function changeNote(check, scope, change = '') {
+  if (!check) return '';
+  const kept = Math.round((1 - check.changedArea) * 100);
+  // Replacing a background or the whole scene legitimately changes most of the picture.
+  const bigByNature = /background|backdrop|scene|sky|setting|surroundings/i.test(change);
+  if (bigByNature) return ` Change check: about ${100 - kept}% of the picture changed (expected when the background changes). Please check the main subject before use.`;
+  if (scope === 'local' && check.changedArea > 0.45) {
+    return ` Change check: about ${100 - kept}% of the picture changed — more than a small edit should. The AI may have altered other details; compare it with the original before using it.`;
+  }
+  return ` Change check: about ${kept}% of the picture is unchanged. AI edits can still alter small details, so please check it before use.`;
+}
+
 async function persist(tx, run, ctx, gen, model, startedAt) {
   const { ro, tool, task, client, instruction } = ctx;
   const userId = run.created_by;
+  if (gen.kind === 'answer') return persistAnswer(tx, run, ctx, gen, model, startedAt);
   const outputIds = [];
   const versionIds = [];
 
@@ -355,7 +440,7 @@ export async function executeRun(runId, userId) {
     if (!run) return;
 
     const model = run.model;
-    const gen = ctx.tool === 'image' ? await runImage(ctx, model) : await runText(ctx, model);
+    const gen = ctx.tool === 'image' ? await runImage(ctx, model) : ctx.ro.mode === 'answer' ? await runAnswer(ctx, model) : await runText(ctx, model);
     // Storage objects uploaded during persistence are removed if the transaction fails.
     const uploaded = [];
     try {
@@ -365,7 +450,40 @@ export async function executeRun(runId, userId) {
       throw err;
     }
     logger.info({ runId, tool: ctx.tool, outputs: gen.outputs.length, ms: Date.now() - startedAt }, 'generation run succeeded');
+    // Long chats: fold the part that left the memory window into the chat summary (background, never fails the run).
+    setImmediate(() => maybeSummarise(run.conversation_id, userId));
   } catch (err) {
     await recordFailure(runId, userId, err);
   }
+}
+
+/** A direct answer: an assistant message with the text (no saved draft). */
+async function persistAnswer(tx, run, ctx, gen, model, startedAt) {
+  const { tool, task, client } = ctx;
+  const message = await insertMessage(tx, {
+    conversationId: run.conversation_id,
+    role: 'assistant',
+    content: gen.answer,
+    messageType: 'response',
+    metadata: { tool, outputIds: [], generationId: run.id, intent: 'answer', requestMeta: { tool: 'assistant', model, requestId: run.id, simulated: false } },
+    userId: null,
+  });
+  const ok = await runsRepo.markSucceeded(tx, run.id, {
+    outputMessageId: message.id,
+    model,
+    outputMetadata: { model, mode: 'answer', outputIds: [], usage: gen.result.usage || null, providerRequestId: gen.result.providerRequestId || null, durationMs: Date.now() - startedAt },
+  });
+  if (!ok) throw new AppError('RUN_SUPERSEDED', 'This AI request was interrupted before it finished.', 409);
+  await runsRepo.touchConversation(tx, run.conversation_id, { toolType: run.tool_type, userId: run.created_by });
+  await logActivity(tx, {
+    userId: run.created_by,
+    type: ACTIVITY.AI_REQUEST,
+    resourceType: 'task',
+    resourceId: task.id,
+    clientId: task.client_id,
+    jobId: task.job_id,
+    taskId: task.id,
+    description: `Chat answer for ${client.name}`.slice(0, 500),
+    metadata: { generationId: run.id, model, mode: 'answer', usage: gen.result.usage || null },
+  });
 }

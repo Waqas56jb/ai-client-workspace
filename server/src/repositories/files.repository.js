@@ -14,7 +14,8 @@ const FILE_SELECT = `
          ${userColumns('cu', 'creator_')},
          o.output_kind, o.updated_at as output_updated_at,
          cv.id as conversation_id_ref, cv.title as conversation_title, cv.task_id as conversation_task_id,
-         (select count(*)::int from public.ai_workspace_file_versions fvc where fvc.file_id = f.id) as file_version_count
+         (select count(*)::int from public.ai_workspace_file_versions fvc where fvc.file_id = f.id) as file_version_count,
+         (select fvm.metadata -> 'extract' from public.ai_workspace_file_versions fvm where fvm.id = f.current_version_id) as current_extract
     from public.ai_workspace_files f
     join public.ai_workspace_clients c on c.id = f.client_id
     left join public.ai_workspace_jobs j on j.id = f.job_id

@@ -9,6 +9,22 @@ import { apiClient, ServiceError } from './apiClient';
  * tab never loses an answer that is still being written.
  */
 
+/**
+ * The chat message: the server works out what it needs (answer, write, new picture,
+ * edit of a picture, question back, or an honest "can't do that") and starts it.
+ * imageRefs = a picture the user chose ({ fileId } or { outputId, versionId }).
+ * options = the user's preferences (format, tone, picture size), used when relevant.
+ * Returns { status: 'queued' | 'clarify' | 'answered', generationId?, conversation, userMessage, assistantMessage? }
+ */
+export async function sendMessage({ taskId, conversationId, prompt, attachmentIds, imageRefs, options, replacesMessageId, idempotencyKey }) {
+  const res = await apiClient.post(
+    '/ai/assistant/message',
+    { taskId, conversationId, prompt, attachmentIds: attachmentIds || [], imageRefs: imageRefs || [], options: options || {}, replacesMessageId },
+    { idempotencyKey },
+  );
+  return res.data;
+}
+
 /** The client's own place for assistant chats: { clientId, jobId, taskId } (created once on the server). */
 export const startSession = async (clientId) => (await apiClient.post('/assistant/session', { clientId })).data;
 
@@ -23,22 +39,6 @@ export async function startWriting({ taskId, conversationId, prompt, options, at
     { idempotencyKey },
   );
   return res.data;
-}
-
-/**
- * Starts an image. `base` = the exact image to change ({ outputId, versionId }) — a
- * generated "Image N" in this chat. Uploaded photos go in `attachmentIds`.
- */
-export async function startImage({ taskId, conversationId, prompt, options, attachmentIds, base, replacesMessageId, idempotencyKey }) {
-  const body = {
-    taskId,
-    conversationId,
-    prompt,
-    attachmentIds: attachmentIds || [],
-    replacesMessageId,
-    options: { ...(options || {}), ...(base ? { editOutputId: base.outputId, editVersionId: base.versionId || undefined, count: 1 } : {}) },
-  };
-  return (await apiClient.post('/ai/images/generate', body, { idempotencyKey })).data;
 }
 
 export const getGeneration = async (id) => (await apiClient.get(`/ai/generations/${id}`)).data;
@@ -87,3 +87,8 @@ export async function uploadFile({ file, clientId, jobId, taskId, description = 
     xhr.send(form);
   });
 }
+
+/** What the assistant remembers about a client (only ever used in that client's chats). */
+export const listMemories = async (clientId) => (await apiClient.get(`/clients/${clientId}/memories`)).data || [];
+export const addMemory = async (clientId, fact) => (await apiClient.post(`/clients/${clientId}/memories`, { fact })).data;
+export const deleteMemory = async (clientId, id) => (await apiClient.delete(`/clients/${clientId}/memories/${id}`)).data;

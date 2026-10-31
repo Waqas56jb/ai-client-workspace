@@ -77,6 +77,7 @@ try {
   for (const [table, trigger] of GUARDS) await db.query(`alter table public.${table} disable trigger ${trigger}`);
   await db.query('set constraints all deferred');
   const steps = [
+    ['client memories', `delete from public.ai_workspace_client_memories where client_id = any($1::uuid[])`],
     ['activity logs', `delete from public.ai_workspace_activity_logs where client_id = any($1::uuid[]) or user_id = any($2::uuid[])`],
     ['approvals', `delete from public.ai_workspace_approvals where client_id = any($1::uuid[])`],
     ['generation runs', `delete from public.ai_workspace_generation_runs where client_id = any($1::uuid[])`],
@@ -95,6 +96,9 @@ try {
     ['presets', `delete from public.ai_workspace_image_presets where client_id = any($1::uuid[]) or (created_by = any($2::uuid[]) and name like 'QA\\_%' and not is_starter)`],
     ['clients', `delete from public.ai_workspace_clients where id = any($1::uuid[])`],
   ];
+  // Client memory exists only once migration 0005 is applied.
+  const hasMemories = (await db.query(`select to_regclass('public.ai_workspace_client_memories') is not null as ok`)).rows[0].ok;
+  if (!hasMemories) steps.shift();
   const report = {};
   for (const [label, sql] of steps) report[label] = (await db.query(sql, sql.includes("$2") ? [ids, qaUsers] : [ids])).rowCount;
   await db.query('set constraints all immediate');

@@ -1,6 +1,7 @@
 import { toFile } from 'openai';
 import { getOpenAI } from '../../config/openai.js';
 import { AppError } from '../../utils/errors.js';
+import { IMAGE_MODELS } from '../../constants/models.js';
 import { chooseGenerationSize, imageInfo, postProcess, toPng } from './imageProcessing.js';
 
 /**
@@ -22,9 +23,10 @@ function decodeImages(response, expected) {
 
 /**
  * Calls the provider and returns raw generated images (not yet resized).
- * @param {{ model:string, prompt:string, count:number, width:number, height:number, quality?:string, references?: Array<{buffer:Buffer, mimeType:string, name:string}> }} p
+ * @param {{ model:string, prompt:string, count:number, width:number, height:number, quality?:string, references?: Array<{buffer:Buffer, mimeType:string, name:string}>, faithful?: boolean }} p
+ *   faithful: an edit of the FIRST reference that must stay close to it → input_fidelity 'high' where the model supports it
  */
-export async function requestImages({ model, prompt, count, width, height, quality, references = [] }) {
+export async function requestImages({ model, prompt, count, width, height, quality, references = [], faithful = false }) {
   const client = getOpenAI();
   const size = chooseGenerationSize(model, width, height);
   const common = { model, prompt, n: count, size: size.sizeParam, output_format: 'png' };
@@ -35,7 +37,8 @@ export async function requestImages({ model, prompt, count, width, height, quali
     const image = await Promise.all(
       references.map((r, i) => toFile(r.buffer, `reference-${i + 1}.${EXT[r.mimeType] || 'png'}`, { type: r.mimeType || 'image/png' })),
     );
-    response = await client.images.edit({ ...common, image });
+    const fidelity = faithful && IMAGE_MODELS[model]?.inputFidelity ? { input_fidelity: 'high' } : {};
+    response = await client.images.edit({ ...common, ...fidelity, image });
   } else {
     response = await client.images.generate(common);
   }
@@ -44,6 +47,7 @@ export async function requestImages({ model, prompt, count, width, height, quali
   return {
     buffers,
     size,
+    inputFidelity: references.length && faithful ? (IMAGE_MODELS[model]?.inputFidelity ? 'high' : 'model-default') : null,
     providerRequestId: response?._request_id || null,
     usage: { inputTokens: u.input_tokens ?? null, outputTokens: u.output_tokens ?? null, totalTokens: u.total_tokens ?? null },
   };

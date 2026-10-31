@@ -31,6 +31,8 @@ const IMAGE_MIME_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 
 const IMAGE_META_KEYS = [
   'requestedWidth', 'requestedHeight', 'actualWidth', 'actualHeight', 'presetId', 'prompt',
   'resizeStrategy', 'model', 'generatedWidth', 'generatedHeight',
+  // faithful edits: what was edited and how much changed (see execution.service.js)
+  'changeCheck', 'inputFidelity', 'editedFrom', 'sourceFileId', 'sourceVersionId', 'editScope',
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

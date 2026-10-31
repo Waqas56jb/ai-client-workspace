@@ -12,7 +12,10 @@ export const UPLOAD_TYPES = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': { category: 'document', exts: ['docx'] },
   'application/vnd.ms-excel': { category: 'document', exts: ['xls'] },
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { category: 'document', exts: ['xlsx'] },
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': { category: 'document', exts: ['pptx'] },
 };
 
 /** Text extracted from a reference document for AI context is capped. */
-export const MAX_REFERENCE_CHARS = 12_000;
+export const MAX_REFERENCE_CHARS = 60_000;
+/** All documents of one request together (≈ 40k tokens). */
+export const MAX_REFERENCE_TOTAL_CHARS = 160_000;

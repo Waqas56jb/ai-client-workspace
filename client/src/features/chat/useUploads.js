@@ -3,7 +3,7 @@ import { uploadFile } from '@/services/chatApi';
 import { checkChatFile, fileType } from '@/lib/fileValidation';
 import { createId } from '@/lib/utils';
 
-export const MAX_FILES = 6;
+export const MAX_FILES = 20;
 
 /**
  * Files waiting in the composer. Each item:
@@ -29,7 +29,8 @@ export function useUploads(scope, mode, clientId) {
         // Some browsers give no type for a picked file; send the one its name implies.
         const typed = file.type ? file : new File([file], file.name, { type: fileType(file) });
         const rec = await uploadFile({ file: typed, ...scope, signal: ctrl.signal, onProgress: (p) => patch(item.id, { progress: p }) });
-        patch(item.id, { status: 'ready', progress: 1, fileId: rec.id });
+        // extract = whether a document's text could be read ({ status: ok | partial | failed | unsupported | model, error })
+        patch(item.id, { status: 'ready', progress: 1, fileId: rec.id, extract: rec.extract || null });
       } catch (e) {
         if (e?.code === 'aborted') return;
         patch(item.id, { status: 'error', error: e?.status === 0 ? 'Upload failed. Check your connection and try again.' : e?.message || 'Upload failed. Please try again.' });

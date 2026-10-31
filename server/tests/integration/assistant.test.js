@@ -105,7 +105,8 @@ describe('conversation memory', () => {
     const input = calls.at(-1).input;
     expect(input).toContain('Note number 22');
     expect(input).toContain('Note number 3 '); // 20 exchanges back
-    expect(input).not.toContain('Note number 1 ');
+    expect(input).toContain('(First request in this chat) Note number 1 '); // the original goal is always kept
+    expect(input).not.toContain('Note number 2 ');
     expect(input).not.toContain('Thanks for your time today'); // nothing from the Alpha conversation
   });
 });

@@ -12,6 +12,7 @@ import {
   loadAttachments,
   loadConversationForTask,
   loadHistory,
+  loadImageInputs,
   loadInstruction,
   loadPreset,
   loadTaskScope,
@@ -147,9 +148,16 @@ export async function startGeneration(user, tool, body, { idempotencyKey } = {})
     const { task, client } = await loadTaskScope(tx, body.taskId);
     const instruction = await loadInstruction(tx, tool);
     const attachments = await loadAttachments(tx, body.attachmentIds, task);
+    // Files from earlier in the chat that the assistant picked for this task (validated the same way).
+    const contextFiles = await loadAttachments(tx, (body.contextFileIds || []).filter((id) => !attachments.some((a) => a.id === id)), task);
     let options = { ...(body.options || {}) };
-    let prompt = String(body.prompt || '').trim();
-    let displayContent = prompt;
+    // Assistant requests (assistant.service.js) may send what the model should do
+    // (generationPrompt) separately from what the user typed (displayContent).
+    const mode = body.mode || 'generate';
+    let prompt = String(body.generationPrompt ?? body.prompt ?? '').trim();
+    let displayContent = body.displayContent !== undefined ? String(body.displayContent) : prompt;
+    const imageInputs = await loadImageInputs(tx, body.imageInputs, task);
+    const vision = await loadImageInputs(tx, body.vision, task);
 
     // Answering a "which format?" question re-uses the original prompt
     let clarification = null;
@@ -173,7 +181,7 @@ export async function startGeneration(user, tool, body, { idempotencyKey } = {})
       // Hide the old message first, so the format remembered below comes only from the part of the chat that stays.
       await replaceFrom(tx, body.conversationId, body.replacesMessageId);
     }
-    if (tool === 'writing' && !options.format) {
+    if (tool === 'writing' && mode !== 'answer' && !options.format) {
       const detected = detectFormat(prompt) || (body.conversationId ? await runsRepo.lastWritingFormat(tx, body.conversationId) : null);
       // A follow-up in a conversation keeps the format already confirmed there ("make it shorter").
       if (detected) options.format = detected;
@@ -188,20 +196,28 @@ export async function startGeneration(user, tool, body, { idempotencyKey } = {})
       options.count = Math.min(4, Math.max(1, Number(options.count) || 1));
     }
 
-    const needsClarify = tool === 'writing' && !options.format;
-    const model = needsClarify ? null : resolveModel(tool, instruction, { edit: tool === 'image' && attachments.some((a) => a.file_category === 'image') });
+    const needsClarify = tool === 'writing' && mode !== 'answer' && !options.format;
+    const model = needsClarify ? null : resolveModel(tool, instruction, { edit: tool === 'image' && (imageInputs.length > 0 || attachments.some((a) => a.file_category === 'image')) });
     if (!needsClarify) await assertCapacity(tx, user.id);
 
-    const conversationId = await ensureConversation(tx, { conversationId: body.conversationId, task, tool, title: prompt || summarise(tool, options), userId: user.id });
+    const conversationId = await ensureConversation(tx, { conversationId: body.conversationId, task, tool, title: displayContent || prompt || summarise(tool, options), userId: user.id });
     const runId = needsClarify ? null : crypto.randomUUID();
     const attachmentIds = attachments.map((a) => a.id);
 
     const userRow = await insertMessage(tx, {
       conversationId,
       role: 'user',
-      content: displayContent || summarise(tool, options),
+      content: body.mode ? displayContent : displayContent || summarise(tool, options),
       messageType: 'prompt',
-      metadata: { tool, generationPrompt: prompt, requestOptions: options, attachmentIds, generationId: runId, ...(body.replacesMessageId ? { replacesMessageId: body.replacesMessageId } : {}) },
+      metadata: {
+        tool,
+        generationPrompt: prompt,
+        requestOptions: options,
+        attachmentIds,
+        generationId: runId,
+        ...(body.replacesMessageId ? { replacesMessageId: body.replacesMessageId } : {}),
+        ...(body.intent ? { intent: body.intent } : {}),
+      },
       userId: user.id,
     });
     if (clarification) await updateMessageMetadata(tx, clarification.id, { resolved: true, answeredByMessageId: userRow.id });
@@ -246,7 +262,17 @@ export async function startGeneration(user, tool, body, { idempotencyKey } = {})
       model,
       idempotencyKey,
       runId,
-      requestOptions: { mode: 'generate', tool, prompt, options, attachmentIds, idempotencyScope },
+      requestOptions: {
+        mode,
+        tool,
+        prompt,
+        options,
+        attachmentIds: [...attachmentIds, ...contextFiles.map((a) => a.id)],
+        idempotencyScope,
+        ...(imageInputs.length ? { imageInputs: imageInputs.map(({ fileId, outputId, versionId, role }) => ({ fileId, outputId, versionId, role })) } : {}),
+        ...(vision.length ? { vision: vision.map(({ fileId, outputId, versionId }) => ({ fileId, outputId, versionId })) } : {}),
+        ...(body.edit ? { edit: body.edit } : {}),
+      },
     });
     return {
       httpStatus: 202,
@@ -268,7 +294,7 @@ export async function startGeneration(user, tool, body, { idempotencyKey } = {})
  * Starts a run that produces a NEW version of an existing output
  * (writing revise, image edit, regenerate).
  */
-async function startOutputRun(user, { outputId, mode, prompt, versionId, note, idempotencyKey, extraOptions = {}, attachmentIds = [], conversationId: requestedConversationId, replacesMessageId }) {
+async function startOutputRun(user, { outputId, mode, prompt, versionId, note, idempotencyKey, extraOptions = {}, attachmentIds = [], conversationId: requestedConversationId, replacesMessageId, edit, size, intent, displayContent }) {
   const db = getDatabase();
   const result = await db.withUser(user.id, async (tx) => {
     const idempotencyScope = `${mode}:${outputId}`;
@@ -312,8 +338,8 @@ async function startOutputRun(user, { outputId, mode, prompt, versionId, note, i
       const meta = (version || output).image_meta || {};
       if (!(version || output).version_object_path) throw new AppError('INVALID_STATE', 'This image has no stored pixels to edit.', 409);
       const options = {
-        width: meta.requestedWidth ?? meta.actualWidth,
-        height: meta.requestedHeight ?? meta.actualHeight,
+        width: size?.width ?? meta.actualWidth ?? meta.requestedWidth,
+        height: size?.height ?? meta.actualHeight ?? meta.requestedHeight,
         count: 1,
         ...(meta.presetId ? { presetId: meta.presetId } : {}),
         ...extraOptions,
@@ -329,9 +355,10 @@ async function startOutputRun(user, { outputId, mode, prompt, versionId, note, i
         attachmentIds: refs.map((a) => a.id),
         targetOutputId: outputId,
         ...(version ? { sourceVersionId: version.version_id } : {}),
+        ...(edit ? { edit } : {}),
         note: version ? `AI edit of v${version.version_number}` : 'AI edit of the previous version',
       };
-      content = prompt;
+      content = displayContent !== undefined ? displayContent : prompt;
     } else {
       // Carry the original request's options (vehicle facts, ad settings) so the
       // revision keeps the same supplied details and missing-information list.
@@ -380,6 +407,7 @@ async function startOutputRun(user, { outputId, mode, prompt, versionId, note, i
         generationId: runId,
         targetOutputId: outputId,
         ...(replacesMessageId ? { replacesMessageId } : {}),
+        ...(intent ? { intent } : {}),
       },
       userId: user.id,
     });
@@ -410,6 +438,10 @@ export const startImageEdit = (user, body, opts = {}) =>
     versionId: body.versionId,
     conversationId: body.conversationId,
     replacesMessageId: body.replacesMessageId,
+    edit: body.edit,
+    size: body.size,
+    intent: body.intent,
+    displayContent: body.displayContent,
     mode: 'image_edit',
     prompt: body.prompt,
     idempotencyKey: opts.idempotencyKey,
@@ -544,4 +576,48 @@ function sanitiseOptions(options = {}) {
     else if (Array.isArray(v)) out[k] = v.filter((x) => typeof x === 'string').slice(0, 40).map((x) => x.slice(0, 200));
   }
   return out;
+}
+
+/**
+ * Stores the user's message and a direct reply without calling a generator — for
+ * a clarifying question or an honest "this can't be done here" from the assistant.
+ */
+export async function recordReply(user, { taskId, conversationId, prompt, attachmentIds = [], replacesMessageId, reply, intent }) {
+  return getDatabase().withUser(user.id, async (tx) => {
+    const { task } = await loadTaskScope(tx, taskId);
+    const attachments = await loadAttachments(tx, attachmentIds, task);
+    if (conversationId) await loadConversationForTask(tx, conversationId, task);
+    if (replacesMessageId) {
+      if (!conversationId) throw badRequest('Changing a message needs its conversation.');
+      await replaceFrom(tx, conversationId, replacesMessageId);
+    }
+    const convId = await ensureConversation(tx, { conversationId, task, tool: 'writing', title: prompt || 'New chat', userId: user.id });
+    const userRow = await insertMessage(tx, {
+      conversationId: convId,
+      role: 'user',
+      content: prompt || '',
+      messageType: 'prompt',
+      metadata: { tool: 'writing', attachmentIds: attachments.map((a) => a.id), intent, ...(replacesMessageId ? { replacesMessageId } : {}) },
+      userId: user.id,
+    });
+    const replyRow = await insertMessage(tx, {
+      conversationId: convId,
+      role: 'assistant',
+      content: reply,
+      messageType: 'response',
+      metadata: { tool: 'writing', outputIds: [], intent, requestMeta: { tool: 'assistant', simulated: false } },
+      userId: null,
+    });
+    await runsRepo.touchConversation(tx, convId, { userId: user.id });
+    return {
+      httpStatus: 200,
+      data: {
+        generationId: null,
+        status: 'answered',
+        conversation: await runsRepo.getConversationDto(tx, convId),
+        userMessage: await messageDto(tx, userRow.id),
+        assistantMessage: await messageDto(tx, replyRow.id),
+      },
+    };
+  });
 }

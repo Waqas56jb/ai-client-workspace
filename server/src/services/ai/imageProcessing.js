@@ -25,7 +25,9 @@ export const MAX_ASPECT = 3;
  */
 export const MIN_GENERATION_PIXELS = 1024 * 640;
 export const LOGO_MAX_WIDTH_RATIO = 0.15;
-export const RESIZE_STRATEGIES = ['cover', 'contain', 'fill'];
+export const RESIZE_STRATEGIES = ['cover', 'contain', 'fill', 'extend'];
+/** Aspect difference (relative) below which a uniform resize is used instead of extending the canvas. */
+export const SAME_ASPECT_TOLERANCE = 0.02;
 
 /** Validates requested output dimensions (integers, 64…IMAGE_MAX_DIMENSION_PX). Throws 400. */
 export function validateDimensions(width, height, max = env.IMAGE_MAX_DIMENSION_PX) {
@@ -140,11 +142,23 @@ async function compositeLogo(base, { width, height, logo, placement }) {
  */
 export async function postProcess(buffer, { width, height, strategy = 'cover', background = '#FFFFFF', logo = null, logoPlacement = '' }) {
   const fit = RESIZE_STRATEGIES.includes(strategy) ? strategy : 'cover';
-  const resizeOpts = { width, height, fit };
-  if (fit === 'cover') resizeOpts.position = sharp.strategy.attention;
-  if (fit === 'contain') resizeOpts.background = parseHexColour(background);
-
-  let out = await sharp(buffer).resize(resizeOpts).png().toBuffer();
+  let out;
+  if (fit === 'extend') {
+    // Whole picture scaled uniformly (never stretched or cropped); the rest of the
+    // canvas is filled with a soft, blurred extension of the same picture.
+    const fg = await sharp(buffer).resize({ width, height, fit: 'inside' }).png().toBuffer();
+    const fm = await sharp(fg).metadata();
+    const bg = await sharp(buffer).resize({ width, height, fit: 'cover' }).blur(40).png().toBuffer();
+    out = await sharp(bg)
+      .composite([{ input: fg, left: Math.round((width - fm.width) / 2), top: Math.round((height - fm.height) / 2) }])
+      .png()
+      .toBuffer();
+  } else {
+    const resizeOpts = { width, height, fit };
+    if (fit === 'cover') resizeOpts.position = sharp.strategy.attention;
+    if (fit === 'contain') resizeOpts.background = parseHexColour(background);
+    out = await sharp(buffer).resize(resizeOpts).png().toBuffer();
+  }
   if (logo) out = await compositeLogo(out, { width, height, logo, placement: logoPlacement });
 
   const meta = await sharp(out).metadata();
@@ -170,4 +184,42 @@ export async function toPng(buffer) {
   const out = await sharp(buffer).png().toBuffer();
   const meta = await sharp(out).metadata();
   return { buffer: out, mimeType: 'image/png', width: meta.width, height: meta.height };
+}
+
+/**
+ * How an edited picture becomes the requested canvas without changing the subject:
+ * same shape → a uniform resize ('fill' is then distortion-free to within 2%);
+ * different shape → 'extend' (never crop or stretch the edited subject).
+ */
+export function editStrategy(generatedWidth, generatedHeight, width, height) {
+  const diff = Math.abs(generatedWidth / generatedHeight / (width / height) - 1);
+  return diff <= SAME_ASPECT_TOLERANCE ? 'fill' : 'extend';
+}
+
+/**
+ * Size of the picture to work on when editing a source image: its own size,
+ * scaled down (never up, never reshaped) to fit the server's maximum edge.
+ */
+export function sourceCanvas(width, height, max = env.IMAGE_MAX_DIMENSION_PX) {
+  const scale = Math.min(1, max / Math.max(width, height));
+  return { width: Math.max(MIN_DIMENSION_PX, Math.round(width * scale)), height: Math.max(MIN_DIMENSION_PX, Math.round(height * scale)) };
+}
+
+/**
+ * Change check between a source picture and its edit (both compared at 96×96, greyscale):
+ *  - similarity: 1 − mean absolute difference (1 = identical)
+ *  - changedArea: share of the picture whose brightness moved by more than 12%
+ * A coarse, honest signal — not proof that only the requested detail changed.
+ */
+export async function changeCheck(source, result) {
+  const norm = (buf) => sharp(buf).resize(96, 96, { fit: 'fill' }).greyscale().raw().toBuffer();
+  const [a, b] = await Promise.all([norm(source), norm(result)]);
+  let sum = 0;
+  let changed = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    const d = Math.abs(a[i] - b[i]);
+    sum += d;
+    if (d > 30) changed += 1;
+  }
+  return { similarity: Math.round((1 - sum / (a.length * 255)) * 1000) / 1000, changedArea: Math.round((changed / a.length) * 1000) / 1000 };
 }

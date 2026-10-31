@@ -17,6 +17,7 @@ import search from './search.routes.js';
 import activity from './activity.routes.js';
 import dashboard from './dashboard.routes.js';
 import settings from './settings.routes.js';
+import memories from './memories.routes.js';
 
 /**
  * /api/v1 router. Everything except /health requires an authenticated, active
@@ -27,7 +28,7 @@ const router = Router();
 
 router.use('/health', health);
 router.use(authenticate);
-[auth, users, clients, jobs, tasks, conversations, ai, files, versions, approvals, presets, instructions, search, activity, dashboard, settings].forEach((r) =>
+[auth, users, clients, memories, jobs, tasks, conversations, ai, files, versions, approvals, presets, instructions, search, activity, dashboard, settings].forEach((r) =>
   router.use(r),
 );
 

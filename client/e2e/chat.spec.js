@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { closeDb, createQaClient, dbRead, login, spendOpenAI, watchPage } from './helpers.js';
@@ -35,13 +36,13 @@ test('write → quick change → approve → reload → edit an earlier message 
   await pickClient(page, client.name);
   await expect(page.locator('header').getByText(client.name)).toBeVisible();
 
-  await page.getByRole('button', { name: /let ai ask/i }).click();
+  await page.locator('[data-options-trigger]').click();
   await page.getByRole('radio', { name: 'Email' }).click();
   await page.getByRole('button', { name: 'Done' }).click();
   const draft = 'hi john, just checkin in about the googel ads campain. we can start next monday if u approve the $1,200 budget. let me no.';
   await page.locator('#chat-input').fill(draft);
   spendOpenAI('text', 'chat improve email');
-  await page.getByRole('button', { name: 'Send' }).click();
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/, { timeout: 30_000 });
   const conversationId = page.url().split('/').pop();
   await expect(page.locator('#chat-input')).toHaveValue(''); // cleared only after the server accepted it
@@ -112,7 +113,6 @@ test('photo: friendly upload errors → upload → edit → “Edit this image�
   const problems = watchPage(page);
   await login(page);
   await pickClient(page, client.name);
-  await page.getByRole('radio', { name: 'Image' }).click();
   const input = page.getByTestId('chat-file-input');
 
   // F — HEIC and too-big files are explained, never uploaded
@@ -129,7 +129,7 @@ test('photo: friendly upload errors → upload → edit → “Edit this image�
   await expect(page.getByText(/Ready to send/)).toBeVisible({ timeout: 60_000 });
   await page.locator('#chat-input').fill('Turn my photo into a soft pastel illustration, keep the layout, no new text');
   spendOpenAI('image', 'chat photo edit');
-  await page.getByRole('button', { name: 'Create image' }).click();
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/, { timeout: 60_000 });
   const conversationId = page.url().split('/').pop();
   await expect(page.getByRole('button', { name: 'Edit this image' })).toHaveCount(1, { timeout: 240_000 });
@@ -137,7 +137,8 @@ test('photo: friendly upload errors → upload → edit → “Edit this image�
   await expect(page.locator('article[aria-label^="Image 2"]')).toBeVisible(); // the result
   const [upload] = await dbRead(`select id from public.ai_workspace_files where client_id = $1 and source_type <> 'generated'`, [client.id]);
   let [run] = await dbRead(`select request_options from public.ai_workspace_generation_runs where conversation_id = $1 order by started_at desc limit 1`, [conversationId]);
-  expect(run.request_options.attachmentIds).toEqual([upload.id]); // the photo really reached the AI
+  expect(run.request_options.mode).toBe('photo_edit'); // understood as an edit of the photo, not a new picture
+  expect(run.request_options.imageInputs[0]).toMatchObject({ fileId: upload.id, role: 'source' }); // the photo really reached the AI
   await page.screenshot({ path: `${SHOTS}/3-photo-result.png` });
 
   // "Edit this image" → the exact picture is attached as a visible chip
@@ -145,7 +146,7 @@ test('photo: friendly upload errors → upload → edit → “Edit this image�
   await expect(page.getByText('Using Image 2')).toBeVisible();
   await page.locator('#chat-input').fill('Make the sky pink');
   spendOpenAI('image', 'chat edit this image');
-  await page.getByRole('button', { name: 'Create image' }).click();
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(page.locator('article[aria-label^="Image 3"]')).toBeVisible({ timeout: 240_000 });
   const outputs = await dbRead(`select id from public.ai_workspace_outputs where conversation_id = $1`, [conversationId]);
   expect(outputs).toHaveLength(1); // a new version of the same picture, not a new picture
@@ -161,12 +162,65 @@ test('photo: friendly upload errors → upload → edit → “Edit this image�
   await page.locator('#chat-input').fill('Use Image 1 and add a thin gold frame');
   await expect(page.getByText('Using Image 1')).toBeVisible();
   spendOpenAI('image', 'chat use image 1');
-  await page.getByRole('button', { name: 'Create image' }).click();
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(page.locator('article[aria-label^="Image 4"]')).toBeVisible({ timeout: 240_000 });
   [run] = await dbRead(`select request_options from public.ai_workspace_generation_runs where conversation_id = $1 order by started_at desc limit 1`, [conversationId]);
-  expect(run.request_options.mode).toBe('generate');
-  expect(run.request_options.attachmentIds).toEqual([upload.id]);
+  expect(run.request_options.mode).toBe('photo_edit');
+  expect(run.request_options.imageInputs[0].fileId).toBe(upload.id);
   await page.screenshot({ path: `${SHOTS}/4-image-refs.png` });
+  expect(problems).toEqual([]);
+});
+
+test('a plain question gets a plain answer in the chat (no draft, no picture)', async ({ page }) => {
+  test.setTimeout(240_000);
+  const client = await createQaClient(`Chat Ask ${Date.now().toString(36)}`);
+  const problems = watchPage(page);
+  await login(page);
+  await pickClient(page, client.name);
+  await page.locator('#chat-input').fill('What is artificial intelligence? Answer in two sentences.');
+  spendOpenAI('text', 'chat question');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/, { timeout: 60_000 });
+  const conversationId = page.url().split('/').pop();
+  await expect(page.getByRole('button', { name: 'Copy', exact: true }).last()).toBeVisible({ timeout: 120_000 });
+  const answer = () => dbRead(`select content, metadata from public.ai_workspace_messages where conversation_id = $1 and role = 'assistant' order by created_at desc limit 1`, [conversationId]);
+  await expect.poll(async () => (await answer()).length, { timeout: 120_000 }).toBe(1);
+  await expect(page.getByRole('button', { name: 'Approve', exact: true })).toHaveCount(0);
+  const [m] = await answer();
+  expect(m.metadata.intent).toBe('answer');
+  const firstWords = m.content.replace(/[*`#]/g, '').split('\n')[0].slice(0, 30);
+  await expect(page.getByText(firstWords).first()).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/0-answer.png` });
+  expect(problems).toEqual([]);
+});
+
+test('a Word document: upload shows it was read, and a question about it is answered from its text', async ({ page }) => {
+  test.setTimeout(240_000);
+  const JSZip = createRequire(import.meta.url)('../../server/node_modules/jszip');
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+  zip.file('_rels/.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+  zip.file('word/document.xml', '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Staff uniform policy: all sales staff wear the navy EV Auto polo shirt from 1 December.</w:t></w:r></w:p></w:body></w:document>');
+  const buffer = await zip.generateAsync({ type: 'nodebuffer' });
+  const client = await createQaClient(`Chat Doc ${Date.now().toString(36)}`);
+  const problems = watchPage(page);
+  await login(page);
+  await pickClient(page, client.name);
+  await page.getByTestId('chat-file-input').setInputFiles({ name: 'uniform-policy.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer });
+  await expect(page.getByText(/Read · ready to send/)).toBeVisible({ timeout: 60_000 });
+  await page.locator('#chat-input').fill('What does this document say, and from when?');
+  spendOpenAI('text', 'chat docx question');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/, { timeout: 60_000 });
+  const conversationId = page.url().split('/').pop();
+  const answer = () => dbRead(`select content, metadata from public.ai_workspace_messages where conversation_id = $1 and role = 'assistant' order by created_at desc limit 1`, [conversationId]);
+  await expect.poll(async () => (await answer()).length, { timeout: 120_000 }).toBe(1);
+  const [m] = await answer();
+  expect(m.metadata.intent).toBe('answer');
+  expect(m.content).toMatch(/navy/i);
+  expect(m.content).toMatch(/1 December/i);
+  await expect(page.getByRole('button', { name: 'Approve', exact: true })).toHaveCount(0);
+  await page.screenshot({ path: `${SHOTS}/6-docx-answer.png` });
   expect(problems).toEqual([]);
 });
 
@@ -177,7 +231,7 @@ test('client isolation: switching client clears the draft and files (no AI call)
   await login(page);
   await pickClient(page, a.name);
   await page.getByTestId('chat-file-input').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('Private notes for client A') });
-  await expect(page.getByText(/Ready to send/)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/ready to send/i)).toBeVisible({ timeout: 60_000 });
   await page.locator('#chat-input').fill('Private draft for A');
   await pickClient(page, b.name);
   await page.getByRole('button', { name: 'Yes, start new chat' }).click();

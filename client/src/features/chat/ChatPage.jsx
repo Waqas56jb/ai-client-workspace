@@ -6,7 +6,7 @@ import { ConfirmDialog, ErrorState, Sheet, Skeleton } from '@/components/ui';
 import { qk, useClient, useClients, useMediaQuery, usePageTitle, usePresets } from '@/hooks';
 import { conversationService } from '@/services';
 import { newIdempotencyKey } from '@/services/apiClient';
-import { regenerateOutput, retryGeneration, startImage, startSession, startWriting } from '@/services/chatApi';
+import { regenerateOutput, retryGeneration, sendMessage, startSession, startWriting } from '@/services/chatApi';
 import { mentionsPhoto, suggestImageReference } from '@/lib/imageReferences';
 import { isMockMode } from '@/lib/config';
 import { useAuthStore } from '@/store/authStore';
@@ -16,6 +16,7 @@ import { ChatHeader } from './ChatHeader';
 import { ChatThread } from './ChatThread';
 import { ChatEmptyState } from './ChatEmptyState';
 import { ClientPicker } from './ClientPicker';
+import { MemoryDialog, memoryKey } from './MemoryDialog';
 import { Composer, FORMATS } from './Composer';
 import { chatKeys, useChatThread } from './useChatData';
 import { useUploads } from './useUploads';
@@ -45,8 +46,8 @@ export default function ChatPage() {
   const qc = useQueryClient();
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   const user = useAuthStore((s) => s.user);
-  const { clientId: storedClientId, mode, format, tone, presetId: storedPresetId, sidebarOpen } = useChatStore();
-  const { setClientId, setMode, setWriting, setPresetId, setSidebarOpen } = useChatStore.getState();
+  const { clientId: storedClientId, format, tone, presetId: storedPresetId, sidebarOpen } = useChatStore();
+  const { setClientId, setWriting, setPresetId, setSidebarOpen } = useChatStore.getState();
   useChatTheme();
 
   // ── who the chat is for ──
@@ -80,7 +81,7 @@ export default function ChatPage() {
   usePageTitle(conv?.title || 'Chat');
 
   // ── composer state ──
-  const uploads = useUploads(scope, mode, clientId);
+  const uploads = useUploads(scope, 'any', clientId);
   const [draft, setDraft] = useState('');
   const [reference, setReference] = useState(null); // { entry, note } chosen with "Use" / "Edit this image"
   const [dismissedKey, setDismissedKey] = useState(null);
@@ -88,6 +89,7 @@ export default function ChatPage() {
   const [sending, setSending] = useState(null);
   const [confirmClient, setConfirmClient] = useState(null);
   const [renaming, setRenaming] = useState(null);
+  const [memoryOpen, setMemoryOpen] = useState(false);
   const inFlight = useRef(false);
   const keyRef = useRef(null);
   const textRef = useRef(null);
@@ -118,18 +120,16 @@ export default function ChatPage() {
   const preset = presets.find((p) => p.id === storedPresetId) || presets.find((p) => !p.isCustom) || presets[0] || null;
 
   // "use Image 2…" / "the image above" → a visible, removable chip (never a silent guess)
-  const suggestion = useMemo(() => (mode === 'image' && !reference ? suggestImageReference(draft, thread.images, mode) : null), [mode, reference, draft, thread.images]);
+  const suggestion = useMemo(() => (!reference ? suggestImageReference(draft, thread.images) : null), [reference, draft, thread.images]);
   const autoRef = suggestion && suggestion.entry.key !== dismissedKey ? suggestion : null;
   const activeRef = reference?.entry || autoRef?.entry || null;
   const refNote = reference
     ? reference.note
     : autoRef
-      ? autoRef.reason === 'label'
-        ? `You wrote “${autoRef.entry.label}”, so this picture will be changed.`
-        : 'The latest picture in this chat. Remove it to make a new picture.'
+      ? `You wrote “${autoRef.entry.label}”, so this picture will be used.`
       : null;
   const hint =
-    mentionsPhoto(draft) && !activeRef && !uploads.items.length
+    mentionsPhoto(draft) && !activeRef && !uploads.items.length && !thread.images.list.length
       ? 'Did you mean to add a photo? Tap “Add photo or file” to add it — the AI can only use pictures you add.'
       : null;
 
@@ -143,9 +143,7 @@ export default function ChatPage() {
           : 'Getting ready…'
         : thread.pending
           ? 'Please wait — the answer above is still being made.'
-          : mode === 'image' && !preset && !activeRef
-            ? 'Choose a picture size in Options.'
-            : null;
+          : null;
 
   // ── sending ──
   const refreshChat = async (convId) => {
@@ -166,6 +164,11 @@ export default function ChatPage() {
       keyRef.current = null;
       if (fromComposer) resetComposer();
       const convId = res?.conversation?.id;
+      const mem = res?.memoryUpdates;
+      if (mem?.added?.length || mem?.removed?.length) {
+        qc.invalidateQueries({ queryKey: memoryKey(clientId) });
+        toast.success(mem.added.length ? `Remembered: ${mem.added.join(' · ')}` : `Forgotten: ${mem.removed.join(' · ')}`, { action: { label: 'View', onClick: () => setMemoryOpen(true) } });
+      }
       await refreshChat(convId);
       qc.invalidateQueries({ queryKey: ['chat-history'] });
       if (convId && convId !== conversationId) navigate(`/chat/${convId}`);
@@ -183,25 +186,29 @@ export default function ChatPage() {
     }
   };
 
+  // The user's preferences travel with every message; the server uses them only when they apply.
+  const preferences = compact({ format, tone, presetId: preset?.id, width: preset?.width, height: preset?.height });
+  const refOf = (e) => (e.kind === 'generated' ? { outputId: e.outputId, versionId: e.versionId } : { fileId: e.fileId });
+
   const send = () => {
     const text = draft.trim();
-    if (!text) return setError(mode === 'image' ? 'Describe the picture first.' : 'Type or paste your message first.');
+    if (!text && !uploads.readyIds.length) return setError('Type a message or add a file first.');
     if (blockedReason || uploads.uploading || uploads.failed) return;
     const attachmentIds = [...uploads.readyIds];
-    let base = null;
-    if (mode === 'image' && activeRef) {
-      if (activeRef.kind === 'generated') base = { outputId: activeRef.outputId, versionId: activeRef.versionId };
-      else if (!attachmentIds.includes(activeRef.fileId)) attachmentIds.unshift(activeRef.fileId);
-    }
-    const common = { taskId: scope.taskId, conversationId: conversationId || undefined, prompt: text, attachmentIds };
     startRequest({
-      display: text,
-      attachmentCount: attachmentIds.length + (base ? 1 : 0),
+      display: text || (attachmentIds.length === 1 ? '(1 file)' : `(${attachmentIds.length} files)`),
+      attachmentCount: attachmentIds.length + (activeRef ? 1 : 0),
       fromComposer: true,
       call: (key) =>
-        mode === 'image'
-          ? startImage({ ...common, base, options: preset ? { presetId: preset.id, width: preset.width, height: preset.height, count: 1 } : { count: 1 }, idempotencyKey: key })
-          : startWriting({ ...common, options: compact({ format, tone }), idempotencyKey: key }),
+        sendMessage({
+          taskId: scope.taskId,
+          conversationId: conversationId || undefined,
+          prompt: text,
+          attachmentIds,
+          imageRefs: activeRef ? [refOf(activeRef)] : [],
+          options: preferences,
+          idempotencyKey: key,
+        }),
     }).catch(() => {});
   };
 
@@ -225,42 +232,21 @@ export default function ChatPage() {
       startRequest({
         display: action.prompt,
         call: (key) =>
-          startWriting({ taskId: conv.taskId, conversationId, prompt: action.prompt, options: action.format ? { format: action.format } : output.format ? { format: output.format } : {}, idempotencyKey: key }),
+          sendMessage({ taskId: conv.taskId, conversationId, prompt: action.prompt, options: compact({ ...preferences, format: action.format || output.format }), idempotencyKey: key }),
       }).catch(() => {}),
     onRegenerate: (output) => startRequest({ display: output.kind === 'image' ? 'Make another like it' : 'Write it again', call: (key) => regenerateOutput(output.id, key) }).catch(() => {}),
     onUseImage: (entry) => {
       if (!entry) return;
-      setMode('image');
       setReference({ entry, note: entry.kind === 'generated' ? 'Your next message changes this picture. It keeps its size.' : 'Your next picture will be made from this photo.' });
       setTimeout(() => textRef.current?.focus(), 30);
     },
-    onSaveEdit: (m, text) => {
-      const ro = m.requestOptions || {};
-      return startRequest({
+    // The changed message is understood again from scratch (with the part of the chat before it).
+    onSaveEdit: (m, text) =>
+      startRequest({
         display: text,
         call: (key) =>
-          m.tool === 'image'
-            ? startImage({
-                taskId: conv.taskId,
-                conversationId,
-                prompt: text,
-                attachmentIds: m.attachmentIds,
-                base: ro.editOutputId ? { outputId: ro.editOutputId, versionId: ro.editVersionId } : null,
-                options: compact({ presetId: ro.presetId, width: ro.width, height: ro.height, count: ro.count || 1 }),
-                replacesMessageId: m.id,
-                idempotencyKey: key,
-              })
-            : startWriting({
-                taskId: conv.taskId,
-                conversationId,
-                prompt: text,
-                attachmentIds: m.attachmentIds,
-                options: compact({ format: ro.format, tone: ro.tone, length: ro.length }),
-                replacesMessageId: m.id,
-                idempotencyKey: key,
-              }),
-      });
-    },
+          sendMessage({ taskId: conv.taskId, conversationId, prompt: text, attachmentIds: m.attachmentIds, options: preferences, replacesMessageId: m.id, idempotencyKey: key }),
+      }),
     onImagesExpired: (() => {
       let last = 0;
       return () => {
@@ -293,7 +279,6 @@ export default function ChatPage() {
   const archive = useArchiveChat(() => navigate('/'));
 
   const starter = (s) => {
-    setMode(s.mode);
     if (s.format) setWriting({ format: s.format });
     setDraft(s.prompt);
     setTimeout(() => {
@@ -407,6 +392,7 @@ export default function ChatPage() {
           onOpenMenu={isDesktop ? undefined : () => setSidebarOpen(true)}
           onRename={conv ? () => setRenaming(conv) : undefined}
           onArchive={conv ? () => archive(conv) : undefined}
+          onMemory={client ? () => setMemoryOpen(true) : undefined}
         />
         {body}
         <Composer
@@ -418,11 +404,6 @@ export default function ChatPage() {
           onSubmit={send}
           sending={!!sending}
           blockedReason={blockedReason}
-          mode={mode}
-          onModeChange={(m) => {
-            setMode(m);
-            if (m === 'writing') setReference(null);
-          }}
           writing={{ format, tone }}
           onWriting={setWriting}
           presets={presets}
@@ -456,6 +437,7 @@ export default function ChatPage() {
         confirmLabel="Yes, start new chat"
       />
       <RenameDialog key={renaming?.id || 'none'} chat={renaming} onClose={() => setRenaming(null)} />
+      <MemoryDialog open={memoryOpen} onClose={() => setMemoryOpen(false)} client={client} />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { Menu, Skeleton } from '@/components/ui';
 import { copyToClipboard, cn, formatDateTime } from '@/lib/utils';
 import { imageKey } from '@/lib/imageReferences';
 import { ChatImage, ImageAnswerCard, TextAnswerCard } from './AnswerCards';
+import { RichText } from './RichText';
 
 export function AiMark({ className }) {
   return (
@@ -124,6 +125,8 @@ export function UserMessage({ message: m, filesById, images, canEdit, onSaveEdit
         <Attachments message={m} filesById={filesById} images={images} onUseImage={onUseImage} />
       </div>
       <div className="mt-1 flex items-center gap-1">
+        {m.memoryUpdates?.added?.length > 0 && <span className="px-1 text-[13.5px] text-muted">Remembered</span>}
+        {m.memoryUpdates?.removed?.length > 0 && <span className="px-1 text-[13.5px] text-muted">Forgotten</span>}
         {m.editedFromId && <span className="px-1 text-[13.5px] text-muted">Edited</span>}
         <time className="px-1 text-[13.5px] text-muted" dateTime={m.createdAt} title={formatDateTime(m.createdAt)}>
           {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -172,6 +175,23 @@ export function AssistantMessage({ message: m, isLast, busy, outputsById, versio
               <RotateCw size={17} aria-hidden /> Try again
             </button>
           )}
+        </div>
+      </li>
+    );
+  }
+
+  // A direct answer (no saved draft or picture): the text itself is the result.
+  const isAnswer = !(m.outputIds || []).length && m.status !== 'clarify';
+  if (isAnswer) {
+    const copy = async () => ((await copyToClipboard(m.content)) ? toast.success('Copied.') : toast.error('Your browser blocked copying.'));
+    return (
+      <li className="flex gap-3">
+        <AiMark />
+        <div className="min-w-0 flex-1 pt-1">
+          <RichText text={m.content} className="break-words text-[17px] leading-[1.65] text-ink" />
+          <button type="button" onClick={copy} className="mt-2 inline-flex h-10 items-center gap-1.5 rounded-lg px-2.5 text-[14.5px] font-medium text-muted hover:bg-canvas hover:text-ink focus-ring">
+            <Copy size={16} aria-hidden /> Copy
+          </button>
         </div>
       </li>
     );
@@ -229,14 +249,17 @@ export function AssistantMessage({ message: m, isLast, busy, outputsById, versio
 
 const STATUS_TEXT = {
   queued: 'Waiting to start…',
+  answer: 'Thinking…',
+  edit_image: 'Editing the picture… This usually takes 30–90 seconds.',
   image: 'Creating your image… This usually takes 30–90 seconds.',
   writing: 'Writing your message…',
 };
 
-/** The answer that is still being made. The words follow the real server status. */
+/** The answer that is still being made. The words follow the real server status and what the assistant decided. */
 export function GenerationStatus({ pending }) {
   const running = pending.status === 'running';
-  const text = !running ? STATUS_TEXT.queued : pending.tool === 'image' ? STATUS_TEXT.image : STATUS_TEXT.writing;
+  const key = pending.intent === 'answer' ? 'answer' : pending.intent === 'edit_image' ? 'edit_image' : pending.tool === 'image' ? 'image' : 'writing';
+  const text = running ? STATUS_TEXT[key] : STATUS_TEXT.queued;
   return (
     <li className="flex gap-3" role="status" aria-live="polite">
       <AiMark />
@@ -249,7 +272,7 @@ export function GenerationStatus({ pending }) {
           </span>
           {text}
         </p>
-        {pending.tool === 'image' ? <Skeleton className="aspect-square w-full max-w-[420px] rounded-2xl" /> : <Skeleton className="h-28 w-full max-w-[640px] rounded-2xl" />}
+        {pending.intent === 'answer' ? null : pending.tool === 'image' ? <Skeleton className="aspect-square w-full max-w-[420px] rounded-2xl" /> : <Skeleton className="h-28 w-full max-w-[640px] rounded-2xl" />}
       </div>
     </li>
   );
@@ -263,7 +286,7 @@ export function SendingMessage({ text, attachmentCount }) {
         <p className="whitespace-pre-wrap break-words text-[17px] leading-[1.6] text-ink">{text}</p>
         {attachmentCount > 0 && <p className="mt-2 text-[14px] text-muted">{attachmentCount === 1 ? '1 file attached' : `${attachmentCount} files attached`}</p>}
       </div>
-      <p className="mt-1 px-1 text-[13.5px] text-muted">Sending…</p>
+      <p className="mt-1 px-1 text-[13.5px] text-muted" role="status">Working out what you need…</p>
     </li>
   );
 }

@@ -1,9 +1,9 @@
-import { Archive, Menu as MenuIcon, Pencil } from 'lucide-react';
+import { Archive, Brain, Menu as MenuIcon, Pencil } from 'lucide-react';
 import { Menu } from '@/components/ui';
 import { ClientDot } from './ClientPicker';
 
 /** Who this chat is for (always visible), the chat's name, and Rename / Archive. */
-export function ChatHeader({ client, title, onOpenMenu, onRename, onArchive }) {
+export function ChatHeader({ client, title, onOpenMenu, onRename, onArchive, onMemory }) {
   return (
     <header className="flex h-[68px] shrink-0 items-center gap-2 border-b border-line bg-surface px-3 sm:px-6">
       {onOpenMenu && (
@@ -22,12 +22,16 @@ export function ChatHeader({ client, title, onOpenMenu, onRename, onArchive }) {
       <h1 className="min-w-0 flex-1 truncate px-1 text-[16px] font-medium text-muted" title={title}>
         {title || 'New chat'}
       </h1>
-      {(onRename || onArchive) && (
+      {(onRename || onArchive || onMemory) && (
         <Menu
           size="lg"
-          width={210}
           label="Chat options"
-          items={[onRename && { label: 'Rename chat', icon: Pencil, onSelect: onRename }, onArchive && { label: 'Archive chat', icon: Archive, onSelect: onArchive }]}
+          width={260}
+          items={[
+            onMemory && { label: 'What the AI remembers', icon: Brain, onSelect: onMemory },
+            onRename && { label: 'Rename chat', icon: Pencil, onSelect: onRename },
+            onArchive && { label: 'Archive chat', icon: Archive, onSelect: onArchive },
+          ]}
         />
       )}
     </header>
