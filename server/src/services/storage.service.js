@@ -56,7 +56,11 @@ function bucket() {
 }
 
 function storageError(action, error) {
-  return new AppError('STORAGE_ERROR', `File storage ${action} failed. Please try again.`, 502, error?.message ? undefined : undefined);
+  // The bucket refuses file types it does not list (see scripts/sync-storage-types.js): say so instead of "try again".
+  if (String(error?.statusCode) === '415' || /mime type .*not supported|invalid_mime_type/i.test(String(error?.message || ''))) {
+    return new AppError('UNSUPPORTED_FILE_TYPE', 'This kind of file can’t be stored yet. Save it as a PDF and add it again, or ask your administrator to enable this file type.', 415);
+  }
+  return new AppError('STORAGE_ERROR', `File storage ${action} failed. Please try again.`, 502);
 }
 
 /** Uploads bytes. Never overwrites (upsert: false) — versions are immutable. */

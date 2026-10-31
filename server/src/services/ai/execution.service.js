@@ -162,7 +162,7 @@ async function runAnswer(ctx, model) {
     content.push({ type: 'input_image', image_url: `data:image/jpeg;base64,${jpg.toString('base64')}`, detail: 'auto' });
   }
   for (const d of docs) content.push({ type: 'input_file', filename: d.name, file_data: `data:application/pdf;base64,${d.buffer.toString('base64')}` });
-  const result = await generateText({ model, instructions, input: [{ role: 'user', content }], maxTokens: 4000 });
+  const result = await generateText({ model, instructions, input: [{ role: 'user', content }], maxTokens: 4000, raw: true });
   return { kind: 'answer', outputs: [], answer: result.text, result };
 }
 

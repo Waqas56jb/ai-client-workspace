@@ -16,7 +16,7 @@ export function maxOutputTokens(instruction) {
  * Verified against openai@7 types: ResponseCreateParams { model, instructions,
  * input, max_output_tokens, store } → Response { id, output_text, usage, model }.
  */
-export async function generateText({ model, instructions, input, maxTokens }) {
+export async function generateText({ model, instructions, input, maxTokens, raw = false }) {
   const client = getOpenAI();
   const response = await client.responses.create({
     model,
@@ -29,7 +29,8 @@ export async function generateText({ model, instructions, input, maxTokens }) {
   if (response?.status === 'incomplete') {
     throw new AppError('AI_INCOMPLETE', 'The AI response was cut off before it finished. Retry, or ask for a shorter output.', 502);
   }
-  const text = cleanModelText(response?.output_text || '');
+  // Drafts lose a stray ``` wrapper; chat answers keep their markdown (a code block is the answer).
+  const text = raw ? String(response?.output_text || '').trim() : cleanModelText(response?.output_text || '');
   if (!text) {
     throw new AppError('AI_EMPTY_RESPONSE', 'The AI service returned an empty response. Please retry.', 502);
   }
