@@ -119,7 +119,9 @@ export async function handleAssistantMessage(user, body, { idempotencyKey } = {}
   const prompt = String(body.prompt || '').trim();
   if (!prompt && !body.attachmentIds?.length) throw badRequest('Type a message or add a file.');
 
+  const timing = { start: Date.now() };
   const ctx = await loadContext(user, body);
+  timing.context = Date.now() - timing.start;
   const { registry, explicit, client } = ctx;
   const routerModel = resolveTextModel(env.OPENAI_ROUTER_MODEL || null);
   if (!routerModel) throw new AppError('AI_CONFIG_ERROR', 'The AI model configured for the assistant is not supported.', 500);
@@ -165,7 +167,7 @@ export async function handleAssistantMessage(user, body, { idempotencyKey } = {}
     const safe = safeError(err);
     throw new AppError(safe.code, `${safe.message} Your message was not sent — please try again.`, safe.code === 'AI_PROVIDER_BUSY' ? 429 : 502);
   }
-  logger.info({ action: route.action, conversationId: body.conversationId || null }, 'assistant route');
+  timing.router = Date.now() - timing.start - timing.context;
 
   const byNumber = (n) => registry.list.find((e) => e.number === n) || null;
   const intent = { action: route.action, summary: route.summary };
@@ -199,6 +201,9 @@ export async function handleAssistantMessage(user, body, { idempotencyKey } = {}
   };
 
   const result = await dispatch();
+  timing.dispatch = Date.now() - timing.start - timing.context - timing.router;
+  // How long each step took (no content), to spot slow providers.
+  logger.info({ action: route.action, conversationId: body.conversationId || null, ms: { context: timing.context, router: timing.router, start: timing.dispatch } }, 'assistant route');
   // Lasting facts the user stated (or asked to forget) — stored after the message itself was accepted.
   const userMessageId = result.data?.userMessage?.id;
   if (userMessageId && (route.remember.length || route.forget.length)) {

@@ -15,8 +15,12 @@ import { describeFile, describeImage } from './imageRegistry.js';
  */
 
 export const ACTIONS = ['answer', 'write', 'generate_image', 'edit_image', 'clarify', 'unsupported'];
-/** The user waits for this step (it decides what happens), so it gets a short timeout and one retry. */
-const ROUTER_TIMEOUT_MS = 40_000;
+/**
+ * The user waits for this step. It normally answers in 1–3 s, but a provider request
+ * occasionally stalls with no reply at all — so a short timeout and quick retries
+ * (measured: a stalled call recovers on the retry in ~2 s).
+ */
+const ROUTER_TIMEOUT_MS = 12_000;
 export const ROUTE_FORMATS = ['email', 'sms', 'whatsapp', 'other', 'unknown'];
 
 export const ROUTER_INSTRUCTIONS = `You decide what the latest user message in StudioFlow AI needs. StudioFlow AI is the assistant of a marketing agency; every chat belongs to one client.
@@ -158,7 +162,7 @@ export async function routeMessage({ model, text, images = [] }) {
     text: { format: { type: 'json_schema', name: 'route', schema: ROUTE_SCHEMA, strict: true } },
     max_output_tokens: 3000,
     store: false,
-  }, { timeout: ROUTER_TIMEOUT_MS, maxRetries: 1 });
+  }, { timeout: ROUTER_TIMEOUT_MS, maxRetries: 2 });
   let raw;
   try {
     raw = JSON.parse(response?.output_text || '');

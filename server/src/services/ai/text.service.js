@@ -46,29 +46,72 @@ export async function generateText({ model, instructions, input, maxTokens, raw 
  * object ({ id, model, status, usage, output_text }) once it is complete.
  * Also accepts a non-streaming result (test fakes), so callers need no special case.
  */
+/** A stream that sends nothing for this long has stalled (the provider occasionally hangs). */
+export const STREAM_IDLE_MS = Number(process.env.AI_STREAM_IDLE_MS) || 30_000;
+
 async function streamed(client, params, onDelta) {
-  const stream = await client.responses.create({ ...params, stream: true });
-  if (!stream || typeof stream[Symbol.asyncIterator] !== 'function') {
-    if (stream?.output_text) onDelta(stream.output_text);
-    return stream;
-  }
-  let text = '';
-  let final = null;
-  for await (const event of stream) {
-    if (event.type === 'response.output_text.delta' && event.delta) {
-      text += event.delta;
-      try {
-        onDelta(event.delta);
-      } catch {
-        /* a viewer going away never stops the answer */
-      }
-    } else if (event.type === 'response.completed' || event.type === 'response.incomplete') {
-      final = event.response;
-    } else if (event.type === 'response.failed' || event.type === 'error') {
-      const err = new Error(event.response?.error?.message || event.message || 'The AI stream failed.');
-      err.status = 502;
-      throw err;
+  // A stall before the first word is retried once; a stall in the middle fails honestly (Retry in the chat).
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await streamOnce(client, params, onDelta);
+    } catch (err) {
+      if (err?.code !== 'AI_STREAM_STALLED' || err.wroteText || attempt >= 2) throw err;
     }
   }
+}
+
+async function streamOnce(client, params, onDelta) {
+  const ctrl = new AbortController();
+  let idle;
+  let stalled = false;
+  const arm = () => {
+    clearTimeout(idle);
+    idle = setTimeout(() => {
+      stalled = true;
+      ctrl.abort();
+    }, STREAM_IDLE_MS);
+  };
+  arm();
+  let text = '';
+  let final = null;
+  try {
+    const stream = await client.responses.create({ ...params, stream: true }, { signal: ctrl.signal });
+    if (!stream || typeof stream[Symbol.asyncIterator] !== 'function') {
+      if (stream?.output_text) onDelta(stream.output_text);
+      return stream;
+    }
+    for await (const event of stream) {
+      arm();
+      text = handleEvent(event, text, onDelta, (f) => (final = f));
+    }
+  } catch (err) {
+    if (stalled) {
+      const e = new AppError('AI_STREAM_STALLED', 'The AI service stopped responding while writing. Please retry.', 504);
+      e.wroteText = text.length > 0;
+      throw e;
+    }
+    throw err;
+  } finally {
+    clearTimeout(idle);
+  }
   return { ...(final || {}), status: final?.status || 'completed', output_text: text || final?.output_text || '' };
+}
+
+/** Applies one stream event; returns the text so far. */
+function handleEvent(event, text, onDelta, setFinal) {
+  if (event.type === 'response.output_text.delta' && event.delta) {
+    text += event.delta;
+    try {
+      onDelta(event.delta);
+    } catch {
+      /* a viewer going away never stops the answer */
+    }
+  } else if (event.type === 'response.completed' || event.type === 'response.incomplete') {
+    setFinal(event.response);
+  } else if (event.type === 'response.failed' || event.type === 'error') {
+    const err = new Error(event.response?.error?.message || event.message || 'The AI stream failed.');
+    err.status = 502;
+    throw err;
+  }
+  return text;
 }
