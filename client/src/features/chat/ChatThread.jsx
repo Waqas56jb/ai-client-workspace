@@ -28,7 +28,8 @@ export function ChatThread({ thread, sending, busy, handlers }) {
 
   // first paint of a chat: start at the latest message
   useLayoutEffect(() => toBottom(false), [toBottom, thread.conversation?.id]);
-  const size = `${messages.length}:${pending?.status || ''}:${sending ? 1 : 0}:${Object.keys(outputsById).length}`;
+  // also follows the answer while it streams in (if the reader is at the bottom)
+  const size = `${messages.length}:${pending?.status || ''}:${sending ? 1 : 0}:${Object.keys(outputsById).length}:${Math.floor((pending?.liveText?.length || 0) / 80)}`;
   useEffect(() => {
     if (stick.current) toBottom(true);
   }, [size, toBottom]);

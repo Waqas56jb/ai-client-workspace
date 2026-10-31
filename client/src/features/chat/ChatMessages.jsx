@@ -260,6 +260,25 @@ export function GenerationStatus({ pending }) {
   const running = pending.status === 'running';
   const key = pending.intent === 'answer' ? 'answer' : pending.intent === 'edit_image' ? 'edit_image' : pending.tool === 'image' ? 'image' : 'writing';
   const text = running ? STATUS_TEXT[key] : STATUS_TEXT.queued;
+  // The words as the AI writes them (answers and drafts), like ChatGPT.
+  if (pending.liveText) {
+    return (
+      <li className="flex gap-3" aria-live="polite" aria-busy="true">
+        <AiMark />
+        <div className="min-w-0 flex-1 pt-1">
+          {key === 'answer' ? (
+            <RichText text={pending.liveText} className="break-words text-[17px] leading-[1.65] text-ink" />
+          ) : (
+            <div className="rounded-2xl border border-line bg-surface px-5 py-4 shadow-card">
+              <p className="mb-2 text-[14px] font-medium text-muted">Writing your draft…</p>
+              <p className="whitespace-pre-wrap break-words text-[17px] leading-[1.65] text-ink">{pending.liveText}</p>
+            </div>
+          )}
+          <span className="typing-caret ml-0.5 inline-block h-5 w-[3px] translate-y-1 rounded-sm bg-brand" aria-hidden />
+        </div>
+      </li>
+    );
+  }
   return (
     <li className="flex gap-3" role="status" aria-live="polite">
       <AiMark />

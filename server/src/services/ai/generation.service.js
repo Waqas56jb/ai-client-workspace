@@ -621,3 +621,12 @@ export async function recordReply(user, { taskId, conversationId, prompt, attach
     };
   });
 }
+
+/** The run's status if it exists and is visible to this user (RLS); 404 otherwise. */
+export async function assertGenerationVisible(user, id) {
+  return getDatabase().withUser(user.id, async (tx) => {
+    const run = await runsRepo.getRun(tx, id);
+    if (!run) throw notFound('Generation');
+    return run.status;
+  });
+}

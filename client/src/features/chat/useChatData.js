@@ -1,7 +1,7 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useConversation, qk } from '@/hooks';
-import { chatOutputs, getFile, getGeneration } from '@/services/chatApi';
+import { chatOutputs, getFile, getGeneration, streamGeneration } from '@/services/chatApi';
 import { buildImageIndex, messageVersions } from '@/lib/imageReferences';
 
 const TERMINAL = new Set(['succeeded', 'failed']);
@@ -72,15 +72,88 @@ export function useChatThread(conversationId) {
   const pending = useMemo(() => pendingGenerationOf(messages), [messages]);
   const generationQ = useGeneration(pending?.generationId, conversationId);
 
+  // The answer being written stays on screen until the typewriter has shown all of
+  // it — even if the finished message arrives first — so it never jumps.
+  const [stickyState, setSticky] = useState(null);
+  useEffect(() => {
+    if (pending && pending.tool !== 'image') setSticky({ conversationId, generationId: pending.generationId, tool: pending.tool, intent: pending.intent, promptMessageId: pending.promptMessageId });
+  }, [conversationId, pending?.generationId, pending?.tool, pending?.intent, pending?.promptMessageId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // only ever for the chat that is open
+  const sticky = stickyState?.conversationId === conversationId ? stickyState : null;
+  const live = useLiveText(sticky?.generationId || null);
+  const finishing = !!sticky && !pending && live.shown.length < live.full.length;
+  const shownMessages = useMemo(
+    () => (finishing ? messages.filter((m) => !(m.role === 'assistant' && m.generationId === sticky.generationId)) : messages),
+    [finishing, messages, sticky],
+  );
+
+  let shownPending = null;
+  if (pending) shownPending = { ...pending, status: live.shown ? 'running' : generationQ.data?.status || 'queued', liveText: pending.tool === 'image' ? '' : live.shown };
+  else if (finishing) shownPending = { ...sticky, status: 'running', liveText: live.shown };
+
   return {
     conversation: convQ.data || null,
     conversationQ: convQ,
     outputsQ,
-    messages,
+    messages: shownMessages,
     outputsById,
     filesById,
     versionsByMessage,
     images,
-    pending: pending ? { ...pending, status: generationQ.data?.status || 'queued' } : null,
+    pending: shownPending,
   };
+}
+
+/** Typewriter speed: a comfortable reading pace, faster when a lot is waiting (it catches up in ~2 s). */
+const BASE_CHARS_PER_SECOND = 280;
+const CATCH_UP_SECONDS = 2;
+
+/**
+ * The text of an answer while the AI writes it, token by token.
+ *  full  — everything received so far from GET /ai/generations/:id/stream
+ *  shown — what is on screen: it follows `full` like a typewriter, so the answer
+ *          is written out even when the model delivers it in a burst.
+ * Empty when streaming is unavailable: the chat then waits for the finished answer, as before.
+ */
+export function useLiveText(generationId) {
+  const [full, setFull] = useState('');
+  const [shown, setShown] = useState('');
+  const fullRef = useRef('');
+
+  useEffect(() => {
+    setFull('');
+    setShown('');
+    fullRef.current = '';
+    if (!generationId) return undefined;
+    const ctrl = new AbortController();
+    streamGeneration(generationId, {
+      signal: ctrl.signal,
+      onText: (t) => {
+        fullRef.current = t;
+        setFull(t);
+      },
+    }).catch(() => {});
+    return () => ctrl.abort();
+  }, [generationId]);
+
+  useEffect(() => {
+    if (shown.length >= full.length) return undefined;
+    let frame;
+    let last = performance.now();
+    let count = shown.length;
+    const step = (now) => {
+      const target = fullRef.current;
+      const backlog = target.length - count;
+      if (backlog <= 0) return;
+      const speed = Math.max(BASE_CHARS_PER_SECOND, backlog / CATCH_UP_SECONDS);
+      count = Math.min(target.length, count + Math.max(1, Math.round(((now - last) / 1000) * speed)));
+      last = now;
+      setShown(target.slice(0, count));
+      if (count < target.length) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [full]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { full, shown };
 }

@@ -239,3 +239,29 @@ test('“What the AI remembers”: add a fact, see it, delete it', async ({ page
   await expect(dialog.getByText('Nothing remembered yet.')).toBeVisible();
   expect(problems).toEqual([]);
 });
+
+test('answers appear word by word while the AI writes them (streaming)', async ({ page }) => {
+  test.setTimeout(240_000);
+  const client = await createQaClient(`Edge Stream ${Date.now().toString(36)}`);
+  const problems = watchPage(page);
+  await login(page);
+  await pickClient(page, client.name);
+  await page.locator('#chat-input').fill('Explain in about 200 words how an electric car battery is charged at home.');
+  spendOpenAI('text', 'edge streaming');
+  await send(page).click();
+  const live = page.locator('li[aria-busy="true"]');
+  await expect(live).toBeVisible({ timeout: 90_000 });
+  // sample the growing answer while it is still being written
+  const lengths = [];
+  for (let i = 0; i < 40 && (await live.count()); i += 1) {
+    lengths.push(((await live.innerText().catch(() => '')) || '').length);
+    await page.waitForTimeout(250);
+  }
+  const growing = lengths.filter((n, i) => i > 0 && n > lengths[i - 1]).length;
+  expect(growing, `lengths seen: ${lengths.join(',')}`).toBeGreaterThanOrEqual(2);
+  // then the finished answer replaces the live text
+  await expect(live).toHaveCount(0, { timeout: 120_000 });
+  await expect(page.getByRole('button', { name: 'Copy', exact: true }).last()).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/5-streamed.png` });
+  expect(problems).toEqual([]);
+});

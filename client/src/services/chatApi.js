@@ -92,3 +92,42 @@ export async function uploadFile({ file, clientId, jobId, taskId, description = 
 export const listMemories = async (clientId) => (await apiClient.get(`/clients/${clientId}/memories`)).data || [];
 export const addMemory = async (clientId, fact) => (await apiClient.post(`/clients/${clientId}/memories`, { fact })).data;
 export const deleteMemory = async (clientId, id) => (await apiClient.delete(`/clients/${clientId}/memories/${id}`)).data;
+
+/**
+ * Follows an answer while it is being written (Server-Sent Events over fetch, so
+ * the sign-in token can be sent). onText gets the full text so far after every piece.
+ * Resolves when the stream ends; the finished answer is then read from the API as usual.
+ */
+export async function streamGeneration(id, { onText, signal }) {
+  const token = await getAccessToken();
+  const res = await fetch(`${config.apiBaseUrl.replace(/\/$/, '')}/ai/generations/${id}/stream`, {
+    headers: { Accept: 'text/event-stream', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    signal,
+  });
+  if (!res.ok || !res.body) return;
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let text = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let cut;
+    while ((cut = buffer.indexOf('\n\n')) >= 0) {
+      const block = buffer.slice(0, cut);
+      buffer = buffer.slice(cut + 2);
+      if (!block.startsWith('data: ')) continue;
+      let event;
+      try {
+        event = JSON.parse(block.slice(6));
+      } catch {
+        continue;
+      }
+      if (event.type === 'snapshot') text = event.text || '';
+      else if (event.type === 'delta') text += event.text || '';
+      else continue;
+      onText(text);
+    }
+  }
+}

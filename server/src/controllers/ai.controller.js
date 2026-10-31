@@ -3,6 +3,9 @@ import { handler, ok } from '../utils/response.js';
 import { idempotencyKey as idempotencySchema } from '../validators/ai.validators.js';
 import * as service from '../services/ai/generation.service.js';
 import * as assistant from '../services/ai/assistant.service.js';
+import { startStream, subscribe } from '../jobs/streamHub.js';
+
+const STREAM_MAX_MS = 5 * 60_000;
 
 /**
  * AI endpoints. Generation is always asynchronous: POSTs respond 202 with a
@@ -80,3 +83,43 @@ export const previewRequest = handler(async (req, res) => ok(res, await service.
 
 /** POST /ai/assistant/message — 200 (answered / clarify) or 202 (queued). */
 export const assistantMessage = handler(async (req, res) => send(res, await assistant.handleAssistantMessage(req.user, req.body, { idempotencyKey: idempotencyKey(req) }), accepted));
+
+/**
+ * GET /ai/generations/:id/stream — Server-Sent Events with the text of an answer
+ * while it is being written: snapshot (all so far), delta (new text), done.
+ * "idle" when nothing is streaming (finished, a picture, or not on this server):
+ * the client then simply waits for GET /ai/generations/:id.
+ */
+export const streamGeneration = handler(async (req, res) => {
+  const status = await service.assertGenerationVisible(req.user, req.params.id); // 404 for another user's run (RLS)
+  // Still waiting in the queue (or just started): keep the stream open for its first words.
+  if (status === 'queued' || status === 'running') startStream(req.params.id);
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders?.();
+  const send = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+  let closed = false;
+  const finish = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(ping);
+    clearTimeout(limit);
+    unsubscribe();
+    res.end();
+  };
+  const ping = setInterval(() => res.write(': ping\n\n'), 15_000);
+  // Never hold a connection for ever (e.g. a run lost in a restart): the chat falls back to polling.
+  const limit = setTimeout(() => {
+    send({ type: 'idle' });
+    finish();
+  }, STREAM_MAX_MS);
+  const unsubscribe = subscribe(req.params.id, (event) => {
+    send(event);
+    if (event.type === 'done' || event.type === 'idle') setImmediate(finish);
+  });
+  req.on('close', finish);
+});

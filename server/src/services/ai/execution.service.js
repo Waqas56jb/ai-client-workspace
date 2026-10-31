@@ -25,6 +25,7 @@ import { processGeneratedImage, requestImages } from './image.service.js';
 import { changeCheck, editStrategy, toPng } from './imageProcessing.js';
 import sharp from 'sharp';
 import { clientMemories, maybeSummarise } from './memory.service.js';
+import { endStream, pushText, startStream } from '../../jobs/streamHub.js';
 import {
   WRITING_FORMAT_LABELS,
   advertisingTitle,
@@ -125,7 +126,7 @@ async function runText(ctx, model) {
     memories: ctx.memories,
     files,
   });
-  const result = await generateText({ model, instructions, input: withPdfs(input, files.pdfs), maxTokens: maxOutputTokens(instruction) });
+  const result = await generateText({ model, instructions, input: withPdfs(input, files.pdfs), maxTokens: maxOutputTokens(instruction), onDelta: ctx.onDelta });
 
   let output;
   if (tool === 'advertising') {
@@ -162,7 +163,7 @@ async function runAnswer(ctx, model) {
     content.push({ type: 'input_image', image_url: `data:image/jpeg;base64,${jpg.toString('base64')}`, detail: 'auto' });
   }
   for (const d of docs) content.push({ type: 'input_file', filename: d.name, file_data: `data:application/pdf;base64,${d.buffer.toString('base64')}` });
-  const result = await generateText({ model, instructions, input: [{ role: 'user', content }], maxTokens: 4000, raw: true });
+  const result = await generateText({ model, instructions, input: [{ role: 'user', content }], maxTokens: 4000, raw: true, onDelta: ctx.onDelta });
   return { kind: 'answer', outputs: [], answer: result.text, result };
 }
 
@@ -440,6 +441,11 @@ export async function executeRun(runId, userId) {
     if (!run) return;
 
     const model = run.model;
+    // Text answers and drafts are streamed to the chat while they are written (GET /ai/generations/:id/stream).
+    if (ctx.tool !== 'image') {
+      startStream(runId);
+      ctx.onDelta = (d) => pushText(runId, d);
+    }
     const gen = ctx.tool === 'image' ? await runImage(ctx, model) : ctx.ro.mode === 'answer' ? await runAnswer(ctx, model) : await runText(ctx, model);
     // Storage objects uploaded during persistence are removed if the transaction fails.
     const uploaded = [];
@@ -449,11 +455,13 @@ export async function executeRun(runId, userId) {
       if (uploaded.length) await removeObjects(uploaded).catch(() => {});
       throw err;
     }
+    endStream(runId, 'succeeded');
     logger.info({ runId, tool: ctx.tool, outputs: gen.outputs.length, ms: Date.now() - startedAt }, 'generation run succeeded');
     // Long chats: fold the part that left the memory window into the chat summary (background, never fails the run).
     setImmediate(() => maybeSummarise(run.conversation_id, userId));
   } catch (err) {
     await recordFailure(runId, userId, err);
+    endStream(runId, 'failed');
   }
 }
 

@@ -16,15 +16,11 @@ export function maxOutputTokens(instruction) {
  * Verified against openai@7 types: ResponseCreateParams { model, instructions,
  * input, max_output_tokens, store } → Response { id, output_text, usage, model }.
  */
-export async function generateText({ model, instructions, input, maxTokens, raw = false }) {
+export async function generateText({ model, instructions, input, maxTokens, raw = false, onDelta = null }) {
   const client = getOpenAI();
-  const response = await client.responses.create({
-    model,
-    instructions,
-    input,
-    max_output_tokens: maxTokens,
-    store: false,
-  });
+  const params = { model, instructions, input, max_output_tokens: maxTokens, store: false };
+  // With onDelta the answer is streamed (stream: true) and every text piece is passed on as it arrives.
+  const response = onDelta ? await streamed(client, params, onDelta) : await client.responses.create(params);
   // A response cut off by max_output_tokens (or a content filter) is not a usable draft.
   if (response?.status === 'incomplete') {
     throw new AppError('AI_INCOMPLETE', 'The AI response was cut off before it finished. Retry, or ask for a shorter output.', 502);
@@ -43,4 +39,36 @@ export async function generateText({ model, instructions, input, maxTokens, raw 
     status: response.status || null,
     usage: { inputTokens: u.input_tokens ?? null, outputTokens: u.output_tokens ?? null, totalTokens: u.total_tokens ?? null },
   };
+}
+
+/**
+ * Streams a response: forwards each output_text delta and returns a response-like
+ * object ({ id, model, status, usage, output_text }) once it is complete.
+ * Also accepts a non-streaming result (test fakes), so callers need no special case.
+ */
+async function streamed(client, params, onDelta) {
+  const stream = await client.responses.create({ ...params, stream: true });
+  if (!stream || typeof stream[Symbol.asyncIterator] !== 'function') {
+    if (stream?.output_text) onDelta(stream.output_text);
+    return stream;
+  }
+  let text = '';
+  let final = null;
+  for await (const event of stream) {
+    if (event.type === 'response.output_text.delta' && event.delta) {
+      text += event.delta;
+      try {
+        onDelta(event.delta);
+      } catch {
+        /* a viewer going away never stops the answer */
+      }
+    } else if (event.type === 'response.completed' || event.type === 'response.incomplete') {
+      final = event.response;
+    } else if (event.type === 'response.failed' || event.type === 'error') {
+      const err = new Error(event.response?.error?.message || event.message || 'The AI stream failed.');
+      err.status = 502;
+      throw err;
+    }
+  }
+  return { ...(final || {}), status: final?.status || 'completed', output_text: text || final?.output_text || '' };
 }
