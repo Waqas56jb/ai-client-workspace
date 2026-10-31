@@ -67,3 +67,36 @@ describe('client memory (live, after migration 0005)', () => {
     expect((await get(`/clients/${alpha.id}/memories`)).data.map((m) => m.fact)).not.toContain('QA: Sarah is the HR Manager and signs emails as “Sarah, HR Manager”.');
   });
 });
+
+describe('memory through the chat (live, real OpenAI)', () => {
+  it('a fact the user states is remembered and used in a NEW chat for the same client only', async () => {
+    if (!tableExists) return;
+    const { spendOpenAI, waitForGeneration } = await import('./helpers/live.js');
+    const taskA = (await post('/assistant/session', { clientId: alpha.id })).data.taskId;
+    const taskB = (await post('/assistant/session', { clientId: beta.id })).data.taskId;
+    spendOpenAI('text', 'router: remember');
+    spendOpenAI('text', 'remember');
+    const first = await post('/ai/assistant/message', { taskId: taskA, prompt: 'Please remember this for the future: I am Priya Nair, the Marketing Manager here, and every email should be signed "Priya Nair, Marketing Manager".' });
+    expect([200, 202]).toContain(first.status);
+    expect(first.data.memoryUpdates?.added?.length, JSON.stringify(first.data.memoryUpdates)).toBeGreaterThan(0);
+    if (first.status === 202) await waitForGeneration(first.data.generationId);
+    const facts = (await get(`/clients/${alpha.id}/memories`)).data.map((m) => m.fact).join(' ');
+    expect(facts).toMatch(/Priya/);
+
+    // a brand-new chat for the same client uses it
+    spendOpenAI('text', 'router: use memory');
+    spendOpenAI('text', 'use memory');
+    const second = await post('/ai/assistant/message', { taskId: taskA, prompt: 'Write a two-line email to a customer saying their car service is done.' });
+    const done = await waitForGeneration(second.data.generationId);
+    const [v] = await dbRead('select v.content from public.ai_workspace_outputs o join public.ai_workspace_output_versions v on v.id = o.current_version_id where o.id = $1', [done.outputs[0].id]);
+    expect(v.content).toMatch(/Priya Nair/);
+
+    // another client never sees it
+    spendOpenAI('text', 'router: other client');
+    spendOpenAI('text', 'other client');
+    const third = await post('/ai/assistant/message', { taskId: taskB, prompt: 'Write a two-line email to a customer saying their order is ready.' });
+    const d3 = await waitForGeneration(third.data.generationId);
+    const [v3] = await dbRead('select v.content from public.ai_workspace_outputs o join public.ai_workspace_output_versions v on v.id = o.current_version_id where o.id = $1', [d3.outputs[0].id]);
+    expect(v3.content).not.toMatch(/Priya/);
+  });
+});

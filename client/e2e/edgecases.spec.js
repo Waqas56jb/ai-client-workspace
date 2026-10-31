@@ -93,8 +93,7 @@ test('every document type uploads through the browser and shows whether it was r
   await expect(page.getByText(/Uploading/)).toHaveCount(0, { timeout: 90_000 });
   for (const f of files) {
     const chip = chips(page).filter({ hasText: f.name });
-    // ready (read), or — only if the server cannot store that type yet — a clear message, never a silent failure
-    await expect(chip).toContainText(/ready to send|Read|can.?t be stored yet/i);
+    await expect(chip).toContainText(/ready to send|Read/i);
   }
   await page.screenshot({ path: `${SHOTS}/1-all-types.png` });
   expect(problems.filter((p) => !/415/.test(p))).toEqual([]);
@@ -221,4 +220,22 @@ test('dark theme from the More menu, and it survives a reload', async ({ page })
   await page.getByRole('button', { name: /^More$/ }).click();
   await page.getByRole('menuitem', { name: 'Light theme' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+});
+
+test('“What the AI remembers”: add a fact, see it, delete it', async ({ page }) => {
+  const client = await createQaClient(`Edge Memory ${Date.now().toString(36)}`);
+  const problems = watchPage(page);
+  await login(page);
+  await pickClient(page, client.name);
+  await page.getByRole('button', { name: 'Chat options' }).click();
+  await page.getByRole('menuitem', { name: 'What the AI remembers' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByText('Nothing remembered yet.')).toBeVisible();
+  await dialog.getByLabel('Add a fact to remember').fill('Prices always include GST.');
+  await dialog.getByRole('button', { name: 'Add' }).click();
+  await expect(dialog.getByText('Prices always include GST.')).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/4-memory.png` });
+  await dialog.getByRole('button', { name: 'Forget: Prices always include GST.' }).click();
+  await expect(dialog.getByText('Nothing remembered yet.')).toBeVisible();
+  expect(problems).toEqual([]);
 });
