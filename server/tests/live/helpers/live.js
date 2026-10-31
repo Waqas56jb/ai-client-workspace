@@ -19,10 +19,13 @@ import { createClient } from '@supabase/supabase-js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const SERVER_ROOT = path.resolve(here, '../../..');
+// A target given on the command line (QA_API_URL=… npx vitest …) wins over the one saved in .env.qa.
+const cliApiUrl = process.env.QA_API_URL;
 dotenv.config({ path: path.join(SERVER_ROOT, '.env'), quiet: true });
 dotenv.config({ path: path.join(SERVER_ROOT, '.env.qa'), override: true, quiet: true });
+if (cliApiUrl) process.env.QA_API_URL = cliApiUrl; // child processes (e.g. Playwright workers) inherit the chosen target
 
-export const API = (process.env.QA_API_URL || 'http://localhost:5055/api/v1').replace(/\/$/, '');
+export const API = (cliApiUrl || process.env.QA_API_URL || 'http://localhost:5055/api/v1').replace(/\/$/, '');
 export const RUN_ID = process.env.QA_RUN_ID || (process.env.QA_RUN_ID = `${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${crypto.randomBytes(2).toString('hex')}`);
 export const tag = (name) => `QA_${RUN_ID}_${name}`;
 

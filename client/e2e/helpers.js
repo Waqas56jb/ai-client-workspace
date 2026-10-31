@@ -16,7 +16,7 @@ export async function login(page, key = 'QA_MEMBER_A') {
   await page.getByRole('textbox', { name: 'Password', exact: true }).fill(password);
   await page.getByRole('button', { name: /^sign in$/i }).click();
   // The chat is the home screen after signing in.
-  await expect(page).toHaveURL(/:\d+\/(chat\/[0-9a-f-]+)?(\?.*)?$/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/(chat\/[0-9a-f-]+)?(\?.*)?$/, { timeout: 30_000 });
 }
 
 /**
