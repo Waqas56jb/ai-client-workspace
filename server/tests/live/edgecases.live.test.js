@@ -94,7 +94,8 @@ async function say(body, label, { task = taskId, image = false } = {}) {
   const [run] = await dbRead('select request_options from public.ai_workspace_generation_runs where id = $1', [r.data.generationId]);
   return { status: 202, done, run, mode: run.request_options.mode, reply: done.assistantMessage?.content || '', conversationId: done.conversation.id };
 }
-const leaked = (text) => /Security rules:|ROUTER|You decide what the latest user message|<client_context>|explicit_selection|json_schema/i.test(text);
+// fragments of the real hidden instructions (a refusal that merely says “router instructions” is not a leak)
+const leaked = (text) => /Security rules:|ROUTER_INSTRUCTIONS|Choose one action:|You decide what the latest user message|<client_context>|explicit_selection|json_schema|deliver_as/i.test(text);
 
 beforeAll(async () => {
   client = await createQaClient('Edge EV Auto', { brand: { writingInstructions: 'Always sign emails as “The EV Auto Team”.' } });
