@@ -265,3 +265,31 @@ test('answers appear word by word while the AI writes them (streaming)', async (
   await page.screenshot({ path: `${SHOTS}/5-streamed.png` });
   expect(problems).toEqual([]);
 });
+
+test('“as a Word document” gives a download card, and the file is a real .docx; drafts have a Word button too', async ({ page }) => {
+  test.setTimeout(300_000);
+  const client = await createQaClient(`Edge Word ${Date.now().toString(36)}`);
+  const problems = watchPage(page);
+  await login(page);
+  await pickClient(page, client.name);
+  await page.locator('#chat-input').fill('Write a one-page staff uniform policy for our dealership and give it to me as a Word document.');
+  spendOpenAI('text', 'edge word doc');
+  await send(page).click();
+  const card = page.getByRole('button', { name: /\.docx/ });
+  await expect(card).toBeVisible({ timeout: 150_000 });
+  const [download] = await Promise.all([page.waitForEvent('download'), card.click()]);
+  expect(download.suggestedFilename()).toMatch(/\.docx$/);
+  const bytes = fs.readFileSync(await download.path());
+  expect(bytes.subarray(0, 2).toString()).toBe('PK'); // a real Office (zip) file
+  const zip = await JSZip.loadAsync(bytes);
+  expect(await zip.file('word/document.xml').async('string')).toMatch(/uniform/i);
+  await page.screenshot({ path: `${SHOTS}/6-word.png` });
+
+  await page.locator('#chat-input').fill('Now write a short email to staff telling them about the new uniform policy.');
+  spendOpenAI('text', 'edge word draft');
+  await send(page).click();
+  await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeVisible({ timeout: 150_000 });
+  const [d2] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Word', exact: true }).click()]);
+  expect(d2.suggestedFilename()).toMatch(/\.docx$/);
+  expect(problems).toEqual([]);
+});

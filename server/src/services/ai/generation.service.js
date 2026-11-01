@@ -272,6 +272,7 @@ export async function startGeneration(user, tool, body, { idempotencyKey } = {})
         ...(imageInputs.length ? { imageInputs: imageInputs.map(({ fileId, outputId, versionId, role }) => ({ fileId, outputId, versionId, role })) } : {}),
         ...(vision.length ? { vision: vision.map(({ fileId, outputId, versionId }) => ({ fileId, outputId, versionId })) } : {}),
         ...(body.edit ? { edit: body.edit } : {}),
+        ...(body.exportAs === 'docx' ? { exportAs: 'docx' } : {}),
       },
     });
     return {

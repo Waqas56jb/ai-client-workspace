@@ -34,6 +34,7 @@ import { safeError } from './execution.service.js';
  */
 
 const MAX_ROUTER_IMAGES = 6;
+const NO_TEXT_PROMPT = 'The user sent files without a message and the chat does not say what to do with them. Describe them briefly, then ask what they would like done.';
 const DOCUMENT_WORDS = /\b(document|doc|docx|file|form|policy|contract|agreement|spreadsheet|sheet|excel|report|presentation|slides?|pdf|attachment|attached|letter|proposal|application)\b/i;
 
 async function loadContext(user, body) {
@@ -170,7 +171,9 @@ export async function handleAssistantMessage(user, body, { idempotencyKey } = {}
   timing.router = Date.now() - timing.start - timing.context;
 
   const byNumber = (n) => registry.list.find((e) => e.number === n) || null;
-  const intent = { action: route.action, summary: route.summary };
+  // A Word document is always produced as a complete answer, even if the router labelled it otherwise.
+  if (route.deliverAs === 'docx' && ['write', 'unsupported', 'clarify'].includes(route.action) && (prompt || ctx.files.length || registry.list.length)) route.action = 'answer';
+  const intent = { action: route.action, summary: route.summary, ...(route.deliverAs === 'docx' ? { deliverAs: 'docx' } : {}) };
   // Files for the task: everything added now, plus earlier files of this chat the router picked.
   let contextFileIds = route.useFiles.map((n) => ctx.files.find((f) => f.number === n && !f.pending)?.fileId).filter(Boolean);
   // Safety net: the message talks about a document but no earlier file was picked → use the latest readable ones.
@@ -238,8 +241,11 @@ export async function handleAssistantMessage(user, body, { idempotencyKey } = {}
             ...withFiles,
             prompt,
             displayContent: prompt,
-            generationPrompt: prompt || 'Describe the picture I added in a few sentences, then ask what I would like to do with it.',
+            // No text with the files: do what the chat already asked for (the router's reading of it); only
+            // when nothing was asked, describe the files and ask.
+            generationPrompt: prompt || (route.summary ? `(The user sent files without a message.) Task: ${route.summary}` : NO_TEXT_PROMPT),
             mode: 'answer',
+            ...(route.deliverAs === 'docx' ? { exportAs: 'docx' } : {}),
             vision: look.map((e) => refOf(e, 'reference')),
             intent,
           },

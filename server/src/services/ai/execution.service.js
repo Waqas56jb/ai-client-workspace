@@ -156,14 +156,14 @@ async function runAnswer(ctx, model) {
   const pictures = await fetchImageInputs(ctx.vision);
   const docs = files.pdfs;
   const labels = pictures.map((p) => p.label || p.name);
-  const { instructions, input } = buildAnswerRequest({ client, job, task, workspace, prompt: ro.prompt, history, references, imageLabels: labels, memories: ctx.memories, files });
+  const { instructions, input } = buildAnswerRequest({ client, job, task, workspace, prompt: ro.prompt, history, references, imageLabels: labels, memories: ctx.memories, files, asDocument: ro.exportAs === 'docx' });
   const content = [{ type: 'input_text', text: input }];
   for (const p of pictures) {
     const jpg = await sharp(p.buffer).rotate().resize({ width: 1536, height: 1536, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
     content.push({ type: 'input_image', image_url: `data:image/jpeg;base64,${jpg.toString('base64')}`, detail: 'auto' });
   }
   for (const d of docs) content.push({ type: 'input_file', filename: d.name, file_data: `data:application/pdf;base64,${d.buffer.toString('base64')}` });
-  const result = await generateText({ model, instructions, input: [{ role: 'user', content }], maxTokens: 4000, raw: true, onDelta: ctx.onDelta });
+  const result = await generateText({ model, instructions, input: [{ role: 'user', content }], maxTokens: ro.exportAs === 'docx' ? 16000 : 4000, raw: true, onDelta: ctx.onDelta });
   return { kind: 'answer', outputs: [], answer: result.text, result };
 }
 
@@ -473,7 +473,7 @@ async function persistAnswer(tx, run, ctx, gen, model, startedAt) {
     role: 'assistant',
     content: gen.answer,
     messageType: 'response',
-    metadata: { tool, outputIds: [], generationId: run.id, intent: 'answer', requestMeta: { tool: 'assistant', model, requestId: run.id, simulated: false } },
+    metadata: { tool, outputIds: [], generationId: run.id, intent: 'answer', ...(ctx.ro.exportAs === 'docx' ? { exportAs: 'docx' } : {}), requestMeta: { tool: 'assistant', model, requestId: run.id, simulated: false } },
     userId: null,
   });
   const ok = await runsRepo.markSucceeded(tx, run.id, {

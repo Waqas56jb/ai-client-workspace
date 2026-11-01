@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Copy, Download, Expand, History, ImageOff, Loader2, RefreshCw, Wand2 } from 'lucide-react';
+import { Copy, Download, Expand, FileDown, History, ImageOff, Loader2, RefreshCw, Wand2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { downloadDocx } from '@/services/chatApi';
 import { Menu } from '@/components/ui';
 import { ApproveButton, ImagePreviewDialog, OutputHistoryDialog } from '@/components/approvals';
 import { useOutputActions } from '@/components/workspace';
@@ -66,6 +68,17 @@ export function TextAnswerCard({ output, version, latest, busy, onQuickChange, o
         </button>
         <button type="button" className={actionBtn} onClick={() => download(v)}>
           <Download size={18} aria-hidden /> Download
+        </button>
+        <button
+          type="button"
+          className={actionBtn}
+          onClick={() =>
+            downloadDocx({ outputId: output.id, versionId: v.id, title: output.title })
+              .then((n) => toast.success(`Downloaded ${n}`))
+              .catch((e) => toast.error(e?.message || 'The Word file could not be made.'))
+          }
+        >
+          <FileDown size={18} aria-hidden /> Word
         </button>
         <ApproveButton output={output} version={v} size="lg" label="Approve" className="h-11 rounded-xl px-4 text-[15px]" />
         <span className="flex-1" />

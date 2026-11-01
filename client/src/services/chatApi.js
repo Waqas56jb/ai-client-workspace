@@ -1,6 +1,7 @@
 import { config } from '@/lib/config';
 import { getAccessToken } from '@/lib/supabaseClient';
 import { apiClient, ServiceError } from './apiClient';
+import { downloadBlob } from '@/lib/utils';
 
 /**
  * Every HTTP call the chat workspace makes. AI requests only START work here
@@ -130,4 +131,15 @@ export async function streamGeneration(id, { onText, signal }) {
       onText(text);
     }
   }
+}
+
+/**
+ * Downloads a real Word document (.docx) of a chat answer ({ messageId }) or of a
+ * saved draft version ({ outputId, versionId }) — built by the server from the stored text.
+ */
+export async function downloadDocx({ messageId, outputId, versionId, title }) {
+  const res = await apiClient.get('/exports/docx', { params: { messageId, outputId, versionId }, responseType: 'blob' });
+  const name = `${String(title || 'Document').replace(/[\\/:*?"<>|#\n\r\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Document'}.docx`;
+  downloadBlob(res.data, name);
+  return name;
 }

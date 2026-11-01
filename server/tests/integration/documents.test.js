@@ -93,8 +93,11 @@ describe('reading documents', () => {
     expect(w.text).toContain('Section 4: medical history');
     const x = await extractDocument(await xlsx(), XLSX);
     expect(x.text).toMatch(/### Sheet “Q3 Sales”/);
-    expect(x.text).toMatch(/EV SUV\t57\t2850000/);
-    expect(x.text).toMatch(/Total\t99\t4110000/);
+    // every value carries its column name, totals rows are flagged, and the system adds its own sums
+    expect(x.text).toContain('Columns: A = Model | B = Units | C = Revenue');
+    expect(x.text).toContain('Row 3: Model (A) = EV SUV | Units (B) = 57 | Revenue (C) = 2850000');
+    expect(x.text).toContain('Row 4 [a totals row written in the sheet]: Model (A) = Total | Units (B) = 99 | Revenue (C) = 4110000');
+    expect(x.text).toContain('Column sums calculated by the system (all numeric data rows, excluding the totals row(s) 4): Units (B) = 99 (2 rows) | Revenue (C) = 4110000 (2 rows)');
     const p = await extractDocument(await pptx(), PPTX);
     expect(p.text.indexOf('Slide 1')).toBeLessThan(p.text.indexOf('Slide 2'));
     expect(p.text).toContain('Pricing & offers');
@@ -143,7 +146,7 @@ describe('the HR document from the client recording', () => {
     fake.route = () => ({ ...blank, action: 'answer', use_files: [2] });
     const res = await say({ conversationId, prompt: 'Which model sold best?', attachmentIds: [x] });
     await poll(res.body.data.generationId);
-    expect(lastText()).toContain('EV SUV\\t57\\t2850000');
+    expect(lastText()).toContain('Model (A) = EV SUV | Units (B) = 57 | Revenue (C) = 2850000');
   });
 });
 
@@ -206,5 +209,47 @@ describe('long chats', () => {
     expect(routerText()).toContain('Summary of the earlier part of this chat:\nOriginal goal: plan the open day.');
     expect(lastText()).toContain('(Summary of the earlier part of this chat)');
     expect(lastText()).toContain('(First request in this chat) Let us plan the EV Auto open day on 14 November.');
+  });
+});
+
+describe('Word documents (.docx)', () => {
+  it('“convert it to Word” → the answer is marked as a Word file and downloads as a real .docx', async () => {
+    fake.route = () => ({ ...blank, action: 'answer', deliver_as: 'docx' });
+    const res = await say({ prompt: 'Convert this into a Word document please.' });
+    const done = await poll(res.body.data.generationId);
+    expect(done.assistantMessage.exportAs).toBe('docx');
+    expect(calls.text.at(-1).instructions).toMatch(/delivered to the user as a downloadable Word document/);
+    const file = await request(app).get(`/api/v1/exports/docx?messageId=${done.assistantMessage.id}`).set(A).buffer(true).parse((r, cb) => {
+      const chunks = [];
+      r.on('data', (c) => chunks.push(c));
+      r.on('end', () => cb(null, Buffer.concat(chunks)));
+    });
+    expect(file.status).toBe(200);
+    expect(file.headers['content-type']).toMatch(/wordprocessingml/);
+    expect(file.headers['content-disposition']).toMatch(/attachment; filename=.*\.docx/);
+    const zip = await JSZip.loadAsync(file.body);
+    expect(await zip.file('word/document.xml').async('string')).toContain('Here is my answer.');
+  });
+
+  it('a router that says “unsupported” for a Word request is overruled: a document is made', async () => {
+    fake.route = () => ({ ...blank, action: 'unsupported', deliver_as: 'docx', limitation: 'I can’t attach a .docx file.' });
+    const res = await say({ prompt: 'I need it in an attachment.' });
+    expect(res.status).toBe(202);
+    const done = await poll(res.body.data.generationId);
+    expect(done.assistantMessage.exportAs).toBe('docx');
+    expect(done.assistantMessage.content).not.toMatch(/can’t attach/);
+  });
+
+  it('drafts download as Word; other users and unknown ids get 404; a user message cannot be exported', async () => {
+    fake.route = () => ({ ...blank, action: 'write', writing_format: 'email' });
+    const res = await say({ prompt: 'Write an email to staff about the open day.' });
+    const done = await poll(res.body.data.generationId);
+    const o = done.outputs[0];
+    const ok = await request(app).get(`/api/v1/exports/docx?outputId=${o.id}&versionId=${o.currentVersion.id}`).set(A);
+    expect(ok.status).toBe(200);
+    expect((await request(app).get('/api/v1/exports/docx?messageId=00000000-0000-4000-8000-000000000000').set(A)).status).toBe(404);
+    expect((await request(app).get(`/api/v1/exports/docx?messageId=${done.userMessage.id}`).set(A)).status).toBe(404);
+    expect((await request(app).get('/api/v1/exports/docx').set(A)).status).toBe(400);
+    expect((await request(app).get(`/api/v1/exports/docx?messageId=${done.assistantMessage.id}`)).status).toBe(401);
   });
 });

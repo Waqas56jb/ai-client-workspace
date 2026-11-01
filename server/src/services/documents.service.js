@@ -61,22 +61,77 @@ const cellText = (v) => {
   return String(v).slice(0, MAX_CELL_CHARS);
 };
 
+const colLetter = (i) => {
+  let s = '';
+  for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+  return s;
+};
+const asNumber = (s) => {
+  const t = String(s).replace(/[$,\s]/g, '');
+  return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : null;
+};
+const TOTAL_RE = /\b(total|sub-?total|sum|grand total)\b/i;
+
+/**
+ * One sheet as text the model cannot misread: every row lists "Column name = value"
+ * (so a figure can't be put under the wrong heading), totals rows are flagged, and
+ * the system adds the column sums it calculated itself.
+ */
+function sheetText(sheet) {
+  const raw = [];
+  let cut = false;
+  sheet.eachRow({ includeEmpty: false }, (row, n) => {
+    if (raw.length >= MAX_SHEET_ROWS) {
+      cut = true;
+      return;
+    }
+    const cells = (row.values || []).slice(1).map(cellText);
+    if (cells.some((c) => c.trim())) raw.push({ n, cells });
+  });
+  if (!raw.length) return { text: '', cut };
+  // header = the first row with at least two text cells
+  const headerIdx = raw.findIndex((r) => r.cells.filter((c) => c.trim() && asNumber(c) === null).length >= 2);
+  const header = headerIdx >= 0 ? raw[headerIdx].cells.map((c) => c.trim()) : [];
+  const name = (i) => (header[i] ? `${header[i]} (${colLetter(i)})` : `Column ${colLetter(i)}`);
+  const lines = [];
+  if (headerIdx >= 0) lines.push(`Columns: ${header.map((h, i) => (h ? `${colLetter(i)} = ${h}` : null)).filter(Boolean).join(' | ')}`);
+  const sums = {};
+  const totalRows = [];
+  raw.forEach((r, idx) => {
+    if (idx === headerIdx) return;
+    const filled = r.cells.map((c, i) => [i, c.trim()]).filter(([, c]) => c);
+    const isTotal = filled.some(([, c]) => TOTAL_RE.test(c));
+    lines.push(`Row ${r.n}${isTotal ? ' [a totals row written in the sheet]' : ''}: ${filled.map(([i, c]) => `${name(i)} = ${c}`).join(' | ')}`);
+    if (isTotal) totalRows.push(r.n);
+    else if (idx > headerIdx) {
+      for (const [i, c] of filled) {
+        const v = asNumber(c);
+        if (v === null) continue;
+        sums[i] ||= { total: 0, count: 0 };
+        sums[i].total += v;
+        sums[i].count += 1;
+      }
+    }
+  });
+  const sumCols = Object.entries(sums).filter(([i]) => header[i]);
+  if (sumCols.length) {
+    lines.push(
+      `Column sums calculated by the system (all numeric data rows${totalRows.length ? `, excluding the totals row(s) ${totalRows.join(', ')}` : ''}): ` +
+        sumCols.map(([i, s]) => `${name(Number(i))} = ${Math.round(s.total * 100) / 100} (${s.count} rows)`).join(' | '),
+    );
+  }
+  return { text: lines.join('\n'), cut };
+}
+
 async function readXlsx(buffer) {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer);
   const parts = [];
   let cut = false;
   wb.eachSheet((sheet) => {
-    const rows = [];
-    sheet.eachRow({ includeEmpty: false }, (row, n) => {
-      if (rows.length >= MAX_SHEET_ROWS) {
-        cut = true;
-        return;
-      }
-      const cells = (row.values || []).slice(1).map(cellText);
-      if (cells.some((c) => c.trim())) rows.push(`${n}\t${cells.join('\t')}`);
-    });
-    parts.push({ label: `Sheet “${sheet.name}” (${sheet.rowCount} rows × ${sheet.columnCount} columns; first number on each line is the row)`, text: rows.join('\n') });
+    const s = sheetText(sheet);
+    cut = cut || s.cut;
+    parts.push({ label: `Sheet “${sheet.name}” (${sheet.rowCount} rows × ${sheet.columnCount} columns)`, text: s.text });
   });
   return done(parts, { note: cut ? `Only the first ${MAX_SHEET_ROWS} rows of each sheet were included.` : null, status: cut ? 'partial' : 'ok' });
 }

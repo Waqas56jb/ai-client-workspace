@@ -31,7 +31,16 @@ Choose one action:
 - generate_image: a NEW picture. change = a complete, self-contained description for the image model that carries over the relevant details from the chat ("same design as before" means describe that design). reference_images = pictures to borrow content or style from without editing them.
 - edit_image: change an EXISTING picture (a photo the user added or a picture made earlier). source_image = the number of the picture to change. change = only the requested change, stated precisely. preserve = every detail that must stay the same: always the subject's identity, shape, size, position, proportions, colours not mentioned, camera angle, perspective and framing, all text and logos not mentioned, and the background unless the change is about the background; plus anything the user said to keep. edit_scope = local when one element or area changes (a colour, the background, a heading), global when the whole look changes (lighting, style, "more professional").
 - clarify: only when the request cannot be done sensibly without one missing detail, for example two different pictures could be meant and nothing tells them apart. question = one short question that names the options ("Image 2 or Image 4?").
-- unsupported: things this system cannot do: send or post anything (email, SMS, social media), make video or audio, browse the internet or use live data, open ZIP files. limitation = a short, honest explanation and the closest thing that can be done here.
+- unsupported: things this system cannot do: send or post anything (email, SMS, social media), make video or audio, browse the internet or use live data, open ZIP files, produce Excel, PowerPoint or PDF files. limitation = a short, honest explanation and the closest thing that can be done here.
+
+What this system CAN deliver: chat answers, client drafts (email, SMS, WhatsApp, other copy), pictures, and a downloadable Word document (.docx) of any answer.
+- deliver_as = docx when the user wants a Word document, a .docx, a document to download, an attachment or a file of the result (for example "convert this PDF to Word", "I need it as an attachment", "give me a Word file") AND the content for it is available now (a file in the chat, an earlier answer or draft, or something to write). The action is then answer, and the answer is the complete document itself.
+- A question about whether it can be done ("can you convert a PDF to Word?", "are you able to make a Word file?") is answered in the chat: deliver_as = chat, action = answer (a short yes and what to send).
+- Otherwise deliver_as = chat.
+- summary: when the user sent files with no text, write the task to carry out with them (for example "Convert File 1 into a Word document, reproducing all its content").
+
+Acting on what was asked before:
+- If the user said earlier what to do with a file (for example "if I send you a PDF, can you convert it to Word?") and then sends the file with little or no text, do that task now (here: answer with deliver_as = docx). Never reply only with "what would you like to do?" when the chat already says what they want.
 
 Documents and spreadsheets (Word, Excel, PowerPoint, PDF, CSV, text):
 - A question about a document — what it is, explain it, summarise it, its advantages and disadvantages, risks, what to do, numbers in a spreadsheet — is ALWAYS answer, never write. Never ask whether it is an email, SMS or WhatsApp.
@@ -58,11 +67,12 @@ const intOrNull = { type: ['integer', 'null'] };
 export const ROUTE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['action', 'summary', 'writing_format', 'source_image', 'reference_images', 'look_at_images', 'use_files', 'change', 'preserve', 'edit_scope', 'use_brand_style', 'width', 'height', 'question', 'limitation', 'remember', 'forget'],
+  required: ['action', 'summary', 'writing_format', 'deliver_as', 'source_image', 'reference_images', 'look_at_images', 'use_files', 'change', 'preserve', 'edit_scope', 'use_brand_style', 'width', 'height', 'question', 'limitation', 'remember', 'forget'],
   properties: {
     action: { type: 'string', enum: ACTIONS },
     summary: { type: 'string' },
     writing_format: { type: 'string', enum: ROUTE_FORMATS },
+    deliver_as: { type: 'string', enum: ['chat', 'docx'] },
     source_image: intOrNull,
     reference_images: { type: 'array', items: { type: 'integer' } },
     look_at_images: { type: 'array', items: { type: 'integer' } },
@@ -125,6 +135,7 @@ export function normaliseRoute(raw) {
     action: ACTIONS.includes(r.action) ? r.action : 'answer',
     summary: clip(r.summary, 400),
     writingFormat: ROUTE_FORMATS.includes(r.writing_format) ? r.writing_format : 'unknown',
+    deliverAs: r.deliver_as === 'docx' ? 'docx' : 'chat',
     sourceImage: Number.isInteger(r.source_image) && r.source_image > 0 ? r.source_image : null,
     referenceImages: ints(r.reference_images),
     lookAtImages: ints(r.look_at_images),

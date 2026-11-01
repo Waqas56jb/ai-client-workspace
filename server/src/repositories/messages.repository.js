@@ -54,6 +54,8 @@ export function toMessageDto(row) {
     versionIds: Array.isArray(meta.versionIds) ? meta.versionIds : [],
     editedFromId: meta.replacesMessageId ?? null,
     memoryUpdates: meta.memoryUpdates ?? null,
+    // 'docx' → the chat offers this answer as a downloadable Word file (GET /exports/docx)
+    exportAs: meta.exportAs ?? null,
     // what the assistant decided for this message (answer | write | generate_image | edit_image | clarify | unsupported)
     intent: (typeof meta.intent === 'string' ? meta.intent : meta.intent?.action) ?? null,
     options: meta.options ?? null,

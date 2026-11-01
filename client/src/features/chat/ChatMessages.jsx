@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertTriangle, Check, Copy, FileText, Pencil, RotateCw, Sparkles } from 'lucide-react';
+import { AlertTriangle, Check, Copy, FileDown, FileText, Loader2, Pencil, RotateCw, Sparkles } from 'lucide-react';
 import { Menu, Skeleton } from '@/components/ui';
 import { copyToClipboard, cn, formatDateTime } from '@/lib/utils';
 import { imageKey } from '@/lib/imageReferences';
 import { ChatImage, ImageAnswerCard, TextAnswerCard } from './AnswerCards';
 import { RichText } from './RichText';
+import { downloadDocx } from '@/services/chatApi';
 
 export function AiMark({ className }) {
   return (
@@ -182,20 +183,7 @@ export function AssistantMessage({ message: m, isLast, busy, outputsById, versio
 
   // A direct answer (no saved draft or picture): the text itself is the result.
   const isAnswer = !(m.outputIds || []).length && m.status !== 'clarify';
-  if (isAnswer) {
-    const copy = async () => ((await copyToClipboard(m.content)) ? toast.success('Copied.') : toast.error('Your browser blocked copying.'));
-    return (
-      <li className="flex gap-3">
-        <AiMark />
-        <div className="min-w-0 flex-1 pt-1">
-          <RichText text={m.content} className="break-words text-[17px] leading-[1.65] text-ink" />
-          <button type="button" onClick={copy} className="mt-2 inline-flex h-10 items-center gap-1.5 rounded-lg px-2.5 text-[14.5px] font-medium text-muted hover:bg-canvas hover:text-ink focus-ring">
-            <Copy size={16} aria-hidden /> Copy
-          </button>
-        </div>
-      </li>
-    );
-  }
+  if (isAnswer) return <AnswerMessage message={m} />;
 
   return (
     <li className="flex gap-3">
@@ -306,6 +294,69 @@ export function SendingMessage({ text, attachmentCount }) {
         {attachmentCount > 0 && <p className="mt-2 text-[14px] text-muted">{attachmentCount === 1 ? '1 file attached' : `${attachmentCount} files attached`}</p>}
       </div>
       <p className="mt-1 px-1 text-[13.5px] text-muted" role="status">Working out what you need…</p>
+    </li>
+  );
+}
+
+const docTitle = (text) => String(text || '').match(/^#{1,3}\s+(.+)$/m)?.[1]?.replace(/\*\*/g, '').trim();
+
+/** A Word download of an answer; while it is being built the button says so. */
+function WordButton({ messageId, title, prominent = false }) {
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try {
+      const name = await downloadDocx({ messageId, title });
+      toast.success(`Downloaded ${name}`);
+    } catch (e) {
+      toast.error(e?.message || 'The Word file could not be made. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (prominent) {
+    return (
+      <button type="button" onClick={run} disabled={busy} className="flex w-full max-w-[460px] items-center gap-3 rounded-2xl border border-brand/40 bg-brand-soft/60 p-3 text-left hover:bg-brand-soft disabled:opacity-70 focus-ring">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#185abd] text-white" aria-hidden>
+          {busy ? <Loader2 size={22} className="animate-spin" /> : <FileText size={22} />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15.5px] font-semibold text-ink">{title || 'Document'}.docx</span>
+          <span className="block text-[14px] text-muted">{busy ? 'Making the Word file…' : 'Word document — click to download'}</span>
+        </span>
+        <FileDown size={20} className="shrink-0 text-brand" aria-hidden />
+      </button>
+    );
+  }
+  return (
+    <button type="button" onClick={run} disabled={busy} className="inline-flex h-10 items-center gap-1.5 rounded-lg px-2.5 text-[14.5px] font-medium text-muted hover:bg-canvas hover:text-ink disabled:opacity-60 focus-ring">
+      {busy ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <FileDown size={16} aria-hidden />} Download Word
+    </button>
+  );
+}
+
+/** A direct answer: the text is the result; Copy and a Word download — a file card first when a document was asked for. */
+function AnswerMessage({ message: m }) {
+  const copy = async () => ((await copyToClipboard(m.content)) ? toast.success('Copied.') : toast.error('Your browser blocked copying.'));
+  const title = docTitle(m.content) || 'StudioFlow AI document';
+  const asFile = m.exportAs === 'docx';
+  return (
+    <li className="flex gap-3">
+      <AiMark />
+      <div className="min-w-0 flex-1 pt-1">
+        {asFile && (
+          <div className="mb-4">
+            <WordButton messageId={m.id} title={title} prominent />
+          </div>
+        )}
+        <RichText text={m.content} className="break-words text-[17px] leading-[1.65] text-ink" />
+        <div className="mt-2 flex flex-wrap items-center gap-1">
+          <button type="button" onClick={copy} className="inline-flex h-10 items-center gap-1.5 rounded-lg px-2.5 text-[14.5px] font-medium text-muted hover:bg-canvas hover:text-ink focus-ring">
+            <Copy size={16} aria-hidden /> Copy
+          </button>
+          {!asFile && m.content?.length > 40 && <WordButton messageId={m.id} title={title} />}
+        </div>
+      </div>
     </li>
   );
 }
