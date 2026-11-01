@@ -57,7 +57,10 @@ export function deriveWritingTitle(content, format) {
   const subject = lines.find((l) => /^subject\s*:/i.test(l));
   // Without a subject line, skip the greeting ("Hi John,") and use the first real sentence.
   const isGreeting = (l) => /^(hi|hello|hey|dear|g'?day|good (morning|afternoon|evening))\b[^.!?]{0,40}[,!]?$/i.test(l);
-  const body = lines.find((l) => !isGreeting(l)) || lines[0] || 'Draft';
+  // …and the polite opener ("I hope you're well.") and bare headings, which say nothing about the message.
+  const isPleasantry = (l) => /^(i|we) (hope|trust)\b[^.!?]{0,60}\b(well|good|great|week|day|weekend)[.!]?$/i.test(l.replace(/[*_]/g, ''));
+  const isHeading = (l) => /^(#+\s+.+|\*\*[^*]+\*\*:?)$/.test(l);
+  const body = lines.find((l) => !isGreeting(l) && !isPleasantry(l) && !isHeading(l)) || lines.find((l) => !isGreeting(l)) || lines[0] || 'Draft';
   let base = subject ? subject.replace(/^subject\s*:\s*/i, '') : body.split(/(?<=[.!?])\s/)[0];
   base = base.replace(/^#+\s*/, '').replace(/[*_]/g, '').replace(/[.,;:]+$/, '').trim() || 'Draft';
   const label = WRITING_FORMAT_LABELS[format];

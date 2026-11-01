@@ -6,7 +6,7 @@ import { fileIconFor } from '@/components/data-display/Entities';
 import { ImagePreviewDialog } from '@/components/approvals/ImagePreview';
 import { useFileSource } from '@/hooks';
 import { versionText } from '@/services';
-import { cn, copyToClipboard, formatBytes } from '@/lib/utils';
+import { cn, copyFormatted, copyToClipboard, formatBytes } from '@/lib/utils';
 import { fileTypeLabel, isCsv, isTextLike, STORAGE_INFO } from './fileMeta';
 import { isMockMode } from '@/lib/config';
 
@@ -34,7 +34,7 @@ export function UnavailablePreview({ file, reason, className }) {
 
 function OutputTextPreview({ version }) {
   const copy = async () => {
-    if (await copyToClipboard(versionText(version))) toast.success('Content copied to clipboard');
+    if (await copyFormatted(versionText(version))) toast.success('Content copied to clipboard');
     else toast.error('Could not copy to the clipboard.');
   };
   return (

@@ -25,7 +25,7 @@ export const DEFAULT_INSTRUCTIONS = {
       'WhatsApp: conversational, at most three short paragraphs.',
       'Optional behaviour, only when asked: give 2 alternative versions (label them "Version 1" and "Version 2"); explain why changes were made; shorten for SMS or WhatsApp; make the message more assertive or more diplomatic.',
     ].join('\n'),
-    formatting: 'Plain text. Short paragraphs. No markdown, no headings, no bold, no emojis.',
+    formatting: 'Clean professional layout: short paragraphs separated by a blank line. Bold (**text**) only for headings or words the user asks to highlight. No # headings, no emojis.',
     constraints: [
       'Do not add emojis.',
       'Do not add subject lines unless requested.',

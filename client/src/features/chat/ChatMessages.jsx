@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertTriangle, Check, Copy, FileDown, FileText, Loader2, Pencil, RotateCw, Sparkles } from 'lucide-react';
 import { Menu, Skeleton } from '@/components/ui';
-import { copyToClipboard, cn, formatDateTime } from '@/lib/utils';
+import { copyFormatted, copyToClipboard, cn, formatDateTime } from '@/lib/utils';
 import { imageKey } from '@/lib/imageReferences';
 import { ChatImage, ImageAnswerCard, TextAnswerCard } from './AnswerCards';
 import { RichText } from './RichText';
@@ -259,7 +259,7 @@ export function GenerationStatus({ pending }) {
           ) : (
             <div className="rounded-2xl border border-line bg-surface px-5 py-4 shadow-card">
               <p className="mb-2 text-[14px] font-medium text-muted">Writing your draft…</p>
-              <p className="whitespace-pre-wrap break-words text-[17px] leading-[1.65] text-ink">{pending.liveText}</p>
+              <RichText text={pending.liveText} className="break-words text-[17px] leading-[1.7] text-ink" />
             </div>
           )}
           <span className="typing-caret ml-0.5 inline-block h-5 w-[3px] translate-y-1 rounded-sm bg-brand" aria-hidden />
@@ -337,7 +337,7 @@ function WordButton({ messageId, title, prominent = false }) {
 
 /** A direct answer: the text is the result; Copy and a Word download — a file card first when a document was asked for. */
 function AnswerMessage({ message: m }) {
-  const copy = async () => ((await copyToClipboard(m.content)) ? toast.success('Copied.') : toast.error('Your browser blocked copying.'));
+  const copy = async () => ((await copyFormatted(m.content)) ? toast.success('Copied.') : toast.error('Your browser blocked copying.'));
   const title = docTitle(m.content) || 'StudioFlow AI document';
   const asFile = m.exportAs === 'docx';
   return (

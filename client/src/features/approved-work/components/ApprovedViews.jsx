@@ -5,8 +5,9 @@ import { Copy, Download, ExternalLink, GitBranch, History, Sparkles } from 'luci
 import { Avatar, Badge, Button, Card, Menu, Table, Td, Th, Tooltip } from '@/components/ui';
 import { ClientLogo, ContextPath, TaskTypeBadge, VersionThumb } from '@/components/data-display/Entities';
 import { versionText } from '@/services';
+import { markdownToPlain } from '@/lib/markdown';
 import { downloadVersion } from '@/lib/media';
-import { cn, copyToClipboard, formatDate, formatDateTime, timeAgo } from '@/lib/utils';
+import { cn, copyFormatted, formatDate, formatDateTime, timeAgo } from '@/lib/utils';
 
 /** Shared actions for an approved output. */
 export function useApprovedActions(output, onHistory) {
@@ -30,7 +31,7 @@ export function useApprovedActions(output, onHistory) {
       }
     },
     copy: async () => {
-      if (await copyToClipboard(versionText(v))) toast.success('Approved text copied to clipboard');
+      if (await copyFormatted(versionText(v))) toast.success('Approved text copied to clipboard');
       else toast.error('Could not copy to the clipboard.');
     },
   };
@@ -73,7 +74,7 @@ function TextPreview({ version, className }) {
       </div>
     );
   }
-  return <p className={cn('line-clamp-[8] whitespace-pre-line text-[12.5px] leading-[19px] text-ink', className)}>{version.content}</p>;
+  return <p className={cn('line-clamp-[8] whitespace-pre-line text-[12.5px] leading-[19px] text-ink', className)}>{markdownToPlain(version.content)}</p>;
 }
 
 function Approver({ version }) {
@@ -177,7 +178,7 @@ function ApprovedRow({ output, onHistory }) {
             <VersionThumb version={v} className="h-12 w-12 shrink-0 rounded-lg border border-line" />
           ) : (
             <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-line bg-canvas p-1.5">
-              <p className="line-clamp-4 text-[7.5px] leading-[9px] text-muted">{versionText(v)}</p>
+              <p className="line-clamp-4 text-[7.5px] leading-[9px] text-muted">{markdownToPlain(versionText(v))}</p>
             </div>
           )}
           <div className="min-w-0">
@@ -188,7 +189,7 @@ function ApprovedRow({ output, onHistory }) {
             ) : (
               <span className="block max-w-[280px] truncate font-medium text-ink">{output.title}</span>
             )}
-            {!isImage && <p className="mt-0.5 line-clamp-1 max-w-[320px] text-xs text-muted">{versionText(v)}</p>}
+            {!isImage && <p className="mt-0.5 line-clamp-1 max-w-[320px] text-xs text-muted">{markdownToPlain(versionText(v))}</p>}
             {isImage && (
               <p className="mt-0.5 text-xs tabular-nums text-muted">
                 {v.image?.requestedWidth} × {v.image?.requestedHeight}px

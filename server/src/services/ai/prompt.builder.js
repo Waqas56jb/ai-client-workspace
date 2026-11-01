@@ -259,6 +259,20 @@ function requestDetails(tool, options = {}) {
  * Builds a Responses API request body (without model/max tokens) for text tools.
  * @returns {{ instructions: string, input: string }}
  */
+/**
+ * How a written draft is laid out. The app shows drafts formatted (like an email
+ * client) and copies them with real bold, so this wins over an older "plain text,
+ * no bold" formatting preference whenever the user asks for formatting.
+ */
+export const WRITING_LAYOUT = `Layout (the app displays **bold** as real bold text and copies it as bold into Gmail or Outlook; this section overrides any "no markdown / no bold" formatting preference above):
+- Lay the message out like a polished professional email: greeting on its own line; short paragraphs (2–4 sentences) separated by one blank line; the sign-off and the sender's name on separate lines.
+- When the user asks for bold, highlighted or emphasised words, headings or figures, ALWAYS do it by wrapping exactly those words in **double asterisks** — never say you can't, and never use capitals, quotes or other symbols instead.
+- A longer message with several topics may use short section headings: a bold line on its own (for example **Payment summary**) with a blank line before it. Short messages need no headings.
+- Lists: "- " bullets or "1." numbers, one item per line. Key figures in a list may be bold.
+- Never use # headings, tables, emojis, code blocks or horizontal rules in a draft.
+- When revising a draft, keep its existing bold, headings and layout unless the request changes them.
+- SMS and WhatsApp: plain text only, no bold or headings.`;
+
 export function buildTextRequest({ tool, instruction, client, job, task, workspace, prompt, options = {}, history = [], references = [], revision = null, memories = [], files = {} }) {
   const clientCtx = buildClientContext(client, tool);
   const blocks = [];
@@ -287,7 +301,8 @@ export function buildTextRequest({ tool, instruction, client, job, task, workspa
   const userText = has(prompt) ? prompt : tool === 'vehicle' ? 'Write the vehicle listing.' : tool === 'advertising' ? 'Write the advertising copy.' : 'Write the requested copy.';
   blocks.push(`<user_request>\n${neutralise(userText)}\n</user_request>`);
 
-  return { instructions: buildInstructionText(instruction), input: blocks.join('\n\n') };
+  const instructions = buildInstructionText(instruction);
+  return { instructions: tool === 'writing' ? `${instructions}\n\n${WRITING_LAYOUT}` : instructions, input: blocks.join('\n\n') };
 }
 
 /** Image prompts have no separate instructions field, so everything is composed into one prompt. */

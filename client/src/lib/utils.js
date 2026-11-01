@@ -1,5 +1,6 @@
 import { clsx } from 'clsx';
 import { format, formatDistanceToNowStrict, isValid, parseISO } from 'date-fns';
+import { markdownToHtml, markdownToPlain } from './markdown';
 
 export function cn(...inputs) {
   return clsx(inputs);
@@ -112,6 +113,26 @@ export async function copyToClipboard(text) {
     const ok = document.execCommand('copy');
     el.remove();
     return ok;
+  }
+}
+
+/**
+ * Copies formatted text the way ChatGPT does: bold, headings and lists paste as real
+ * formatting into Gmail, Outlook or Word, and as clean text (no ** or #) anywhere else.
+ */
+export async function copyFormatted(markdown) {
+  const plain = markdownToPlain(markdown);
+  try {
+    if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) throw new Error('no rich clipboard');
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'text/html': new Blob([markdownToHtml(markdown)], { type: 'text/html' }),
+        'text/plain': new Blob([plain], { type: 'text/plain' }),
+      }),
+    ]);
+    return true;
+  } catch {
+    return copyToClipboard(plain);
   }
 }
 

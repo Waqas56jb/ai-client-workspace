@@ -1,76 +1,29 @@
 import { Fragment } from 'react';
+import { parseBlocks, parseInline } from '@/lib/markdown';
+import { cn } from '@/lib/utils';
 
 /**
- * Shows an AI answer with the little formatting chat answers use — paragraphs,
- * headings, bullet and numbered lists, **bold**, `code` and fenced code blocks —
- * as plain React elements (no HTML from the model is ever injected).
+ * Shows an AI answer or draft with the formatting it was written with — headings,
+ * **bold**, *italic*, `code`, lists, tables and code blocks — as plain React
+ * elements (no HTML from the model is ever injected).
  */
 
 function inline(text, keyBase) {
-  const parts = [];
-  const re = /(\*\*[^*]+\*\*|`[^`]+`)/g;
-  let last = 0;
-  let m;
-  let i = 0;
-  while ((m = re.exec(text))) {
-    if (m.index > last) parts.push(text.slice(last, m.index));
-    const t = m[0];
-    parts.push(
-      t.startsWith('**') ? (
-        <strong key={`${keyBase}-${i}`} className="font-semibold">
-          {t.slice(2, -2)}
-        </strong>
-      ) : (
-        <code key={`${keyBase}-${i}`} className="rounded bg-canvas px-1.5 py-0.5 font-mono text-[0.9em]">
-          {t.slice(1, -1)}
-        </code>
-      ),
-    );
-    last = m.index + t.length;
-    i += 1;
-  }
-  if (last < text.length) parts.push(text.slice(last));
-  return parts;
+  return parseInline(text).map((p, i) => {
+    const key = `${keyBase}-${i}`;
+    if (p.type === 'bold') return <strong key={key} className="font-semibold text-ink">{p.text}</strong>;
+    if (p.type === 'italic') return <em key={key}>{p.text}</em>;
+    if (p.type === 'code') return <code key={key} className="rounded bg-canvas px-1.5 py-0.5 font-mono text-[0.9em]">{p.text}</code>;
+    return <Fragment key={key}>{p.text}</Fragment>;
+  });
 }
 
-function blocks(text) {
-  const lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
-  const out = [];
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    if (/^```/.test(line)) {
-      const code = [];
-      i += 1;
-      while (i < lines.length && !/^```/.test(lines[i])) code.push(lines[(i += 1) - 1]);
-      i += 1;
-      out.push({ type: 'code', text: code.join('\n') });
-    } else if (/^\s*([-*•])\s+/.test(line)) {
-      const items = [];
-      while (i < lines.length && /^\s*([-*•])\s+/.test(lines[i])) items.push(lines[(i += 1) - 1].replace(/^\s*([-*•])\s+/, ''));
-      out.push({ type: 'ul', items });
-    } else if (/^\s*\d+[.)]\s+/.test(line)) {
-      const items = [];
-      while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])) items.push(lines[(i += 1) - 1].replace(/^\s*\d+[.)]\s+/, ''));
-      out.push({ type: 'ol', items });
-    } else if (/^#{1,4}\s+/.test(line)) {
-      out.push({ type: 'h', text: line.replace(/^#{1,4}\s+/, '') });
-      i += 1;
-    } else if (!line.trim()) {
-      i += 1;
-    } else {
-      const para = [];
-      while (i < lines.length && lines[i].trim() && !/^(```|\s*[-*•]\s+|\s*\d+[.)]\s+|#{1,4}\s+)/.test(lines[i])) para.push(lines[(i += 1) - 1]);
-      out.push({ type: 'p', lines: para });
-    }
-  }
-  return out;
-}
+const HEADING_SIZE = { 1: 'text-[1.3em]', 2: 'text-[1.17em]', 3: 'text-[1.06em]' };
 
 export function RichText({ text, className }) {
   return (
     <div className={className}>
-      {blocks(text).map((b, n) => {
+      {parseBlocks(text).map((b, n) => {
         const k = `b${n}`;
         if (b.type === 'code') {
           return (
@@ -79,25 +32,56 @@ export function RichText({ text, className }) {
             </pre>
           );
         }
-        if (b.type === 'ul' || b.type === 'ol') {
-          const List = b.type === 'ul' ? 'ul' : 'ol';
+        if (b.type === 'hr') return <hr key={k} className="my-4 border-line" />;
+        if (b.type === 'table') {
           return (
-            <List key={k} className={`my-2 space-y-1.5 pl-6 ${b.type === 'ul' ? 'list-disc' : 'list-decimal'}`}>
+            <div key={k} className="my-3 overflow-x-auto rounded-xl border border-line scrollbar-thin">
+              <table className="w-full border-collapse text-[0.92em]">
+                <thead className="bg-canvas">
+                  <tr>
+                    {b.rows[0].map((c, j) => (
+                      <th key={j} className="border-b border-line px-3 py-2 text-left font-semibold">
+                        {inline(c, `${k}-h${j}`)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {b.rows.slice(1).map((r, ri) => (
+                    <tr key={ri} className="border-b border-line last:border-0">
+                      {r.map((c, j) => (
+                        <td key={j} className="px-3 py-2 align-top">
+                          {inline(c, `${k}-${ri}-${j}`)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+        if (b.type === 'ul' || b.type === 'ol') {
+          const List = b.type;
+          return (
+            <List key={k} className={cn('my-3 space-y-1.5 pl-6 marker:text-muted', b.type === 'ul' ? 'list-disc' : 'list-decimal')}>
               {b.items.map((it, j) => (
-                <li key={j}>{inline(it, `${k}-${j}`)}</li>
+                <li key={j} className="pl-1">
+                  {inline(it, `${k}-${j}`)}
+                </li>
               ))}
             </List>
           );
         }
         if (b.type === 'h') {
           return (
-            <p key={k} className="mb-1 mt-4 font-semibold first:mt-0">
+            <p key={k} role="heading" aria-level={Math.min(b.level + 1, 6)} className={cn('mb-1.5 mt-5 font-semibold leading-snug text-ink first:mt-0', HEADING_SIZE[b.level])}>
               {inline(b.text, k)}
             </p>
           );
         }
         return (
-          <p key={k} className="my-2 first:mt-0 last:mb-0">
+          <p key={k} className="my-3 first:mt-0 last:mb-0">
             {b.lines.map((l, j) => (
               <Fragment key={j}>
                 {j > 0 && <br />}

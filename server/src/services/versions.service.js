@@ -8,6 +8,7 @@ import * as filesRepo from '../repositories/files.repository.js';
 import { badRequest, notFound } from '../utils/errors.js';
 import { pageMeta, pagination } from '../utils/mappers.js';
 import { signedUrl } from './storage.service.js';
+import { markdownToPlain } from '../utils/markdown.js';
 import { addTextRevision, buildOutputDtos, displayFileName, getOutputDto, restoreVersion, toVersionDto, versionText } from './output.service.js';
 
 /**
@@ -144,7 +145,7 @@ export async function downloadVersion(user, id, versionId) {
     const v = await versionsRepo.findVersion(tx, id, versionId);
     if (!v) throw notFound('Version');
     if (output.output_kind === 'text') {
-      return { kind: 'text', text: versionText(v), fileName: displayFileName(`${output.title}-v${v.version_number}`, 'txt') };
+      return { kind: 'text', text: markdownToPlain(versionText(v)), fileName: displayFileName(`${output.title}-v${v.version_number}`, 'txt') };
     }
     if (!v.fv_storage_path) throw notFound('Image');
     const ext = v.fv_file_name?.includes('.') ? v.fv_file_name.split('.').pop() : 'png';

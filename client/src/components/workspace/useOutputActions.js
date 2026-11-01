@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { useServiceMutation } from '@/hooks';
 import { aiService, versionText } from '@/services';
 import { downloadVersion } from '@/lib/media';
-import { copyToClipboard } from '@/lib/utils';
+import { copyFormatted } from '@/lib/utils';
 import { isMockMode } from '@/lib/config';
 
 /** Session-only record of verified PNG export sizes, keyed by version id. */
@@ -27,7 +27,8 @@ export function useOutputActions(output, { onRegenerated } = {}) {
   });
 
   const copy = async (text) => {
-    const ok = await copyToClipboard(text ?? versionText(output.currentVersion));
+    // formatted copy: bold and lists paste as real formatting into an email
+    const ok = await copyFormatted(text ?? versionText(output.currentVersion));
     if (ok) toast.success('Copied to clipboard');
     else toast.error('Could not copy — your browser blocked clipboard access.');
   };

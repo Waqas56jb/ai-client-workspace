@@ -9,6 +9,7 @@ import { versionText } from '@/services';
 import { versionImageSrc } from '@/lib/media';
 import { WRITING_FORMATS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { RichText } from './RichText';
 
 /** One-click follow-ups under the latest written answer (sent as a new message; the AI remembers the draft). */
 export const QUICK_CHANGES = [
@@ -50,13 +51,13 @@ export function TextAnswerCard({ output, version, latest, busy, onQuickChange, o
       </header>
       <div className="px-5 pb-2 pt-3">
         {text != null ? (
-          <p className="whitespace-pre-wrap break-words text-[17px] leading-[1.65] text-ink">{text}</p>
+          <RichText text={text} className="break-words text-[17px] leading-[1.7] text-ink" />
         ) : (
           <div className="space-y-3">
             {(v?.sections || []).map((s) => (
               <div key={s.id || s.label}>
                 <p className="text-[14px] font-semibold text-muted">{s.label}</p>
-                <p className="whitespace-pre-wrap break-words text-[17px] leading-[1.65] text-ink">{s.text}</p>
+                <RichText text={s.text} className="break-words text-[17px] leading-[1.7] text-ink" />
               </div>
             ))}
           </div>

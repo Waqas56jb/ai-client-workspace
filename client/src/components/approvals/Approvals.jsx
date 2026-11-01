@@ -8,7 +8,7 @@ import { useOutput, useServiceMutation } from '@/hooks';
 import { approvalService, versionService, versionText } from '@/services';
 import { downloadVersion, versionImageSrc } from '@/lib/media';
 import { diffWords } from '@/lib/diff';
-import { cn, copyToClipboard, formatDateTime, timeAgo } from '@/lib/utils';
+import { cn, copyFormatted, formatDateTime, timeAgo } from '@/lib/utils';
 import { isMockMode } from '@/lib/config';
 
 /** Approve-a-version flow with confirmation. Renders its own trigger button. */
@@ -327,7 +327,7 @@ export function OutputHistoryDialog({ open, onClose, outputId, initialVersionId,
                   <div className="flex flex-wrap items-center gap-1.5">
                     {output.kind === 'text' ? (
                       <Tooltip content="Copy text">
-                        <Button size="icon-sm" icon={Copy} aria-label="Copy text" onClick={async () => (await copyToClipboard(versionText(selected))) && toast.success('Copied to clipboard')} />
+                        <Button size="icon-sm" icon={Copy} aria-label="Copy text" onClick={async () => (await copyFormatted(versionText(selected))) && toast.success('Copied to clipboard')} />
                       </Tooltip>
                     ) : (
                       <Button size="sm" icon={Eye} onClick={() => setPreview(true)}>

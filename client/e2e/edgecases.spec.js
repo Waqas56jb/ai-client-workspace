@@ -293,3 +293,43 @@ test('“as a Word document” gives a download card, and the file is a real .do
   expect(d2.suggestedFilename()).toMatch(/\.docx$/);
   expect(problems).toEqual([]);
 });
+
+test('client report: “make the headings bold” shows real bold (no asterisks), and Copy pastes bold into an email', async ({ page, context }) => {
+  test.setTimeout(360_000);
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const client = await createQaClient(`Edge Bold ${Date.now().toString(36)}`);
+  const problems = watchPage(page);
+  await login(page);
+  await pickClient(page, client.name);
+  await page
+    .locator('#chat-input')
+    .fill('Write a professional email to Muhammad from Waqas Naveed about project payments with three sections: Project ERP (2000 total, 200 received, 1800 pending), Project EOS (1000 total, 436 received, 564 pending) and Next steps.');
+  spendOpenAI('text', 'edge bold email');
+  await send(page).click();
+  const approve = page.getByRole('button', { name: 'Approve', exact: true });
+  await expect(approve).toHaveCount(1, { timeout: 150_000 });
+
+  await page.locator('#chat-input').fill('Make the section headings in my email bold.');
+  spendOpenAI('text', 'edge bold headings');
+  await send(page).click();
+  await expect(approve).toHaveCount(2, { timeout: 150_000 });
+  const latest = page.locator('article[aria-label^="Written answer"]').last();
+  // bold is shown as bold — never as **asterisks**
+  await expect(latest.locator('strong').first()).toBeVisible();
+  expect((await latest.locator('strong').allInnerTexts()).join(' ')).toMatch(/ERP|EOS|Next steps/i);
+  expect(await latest.innerText()).not.toContain('**');
+  await page.screenshot({ path: `${SHOTS}/7-bold.png`, fullPage: false });
+
+  // Copy puts real formatting (HTML with <strong>) and clean text (no **) on the clipboard
+  await latest.getByRole('button', { name: 'Copy', exact: true }).click();
+  const clip = await page.evaluate(async () => {
+    const [item] = await navigator.clipboard.read();
+    const html = item.types.includes('text/html') ? await (await item.getType('text/html')).text() : '';
+    const plain = await (await item.getType('text/plain')).text();
+    return { html, plain };
+  });
+  expect(clip.html).toMatch(/<strong>[^<]*(ERP|EOS|Next steps)/i);
+  expect(clip.plain).not.toContain('**');
+  expect(clip.plain).toMatch(/Muhammad/);
+  expect(problems).toEqual([]);
+});
