@@ -264,8 +264,31 @@ function requestDetails(tool, options = {}) {
  * client) and copies them with real bold, so this wins over an older "plain text,
  * no bold" formatting preference whenever the user asks for formatting.
  */
+/**
+ * Today's date in Melbourne, so "tomorrow", "this Saturday" or "the 7th" become real
+ * dates (e.g. "Saturday 7 November") instead of guesses or "[month]" placeholders.
+ */
+export function todayLine(now = new Date()) {
+  const day = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Melbourne', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now);
+  return `Today is ${day} (Melbourne time). Work out relative dates from this ("tomorrow", "this Saturday the 7th" → the full date with its month).`;
+}
+
+/**
+ * How to turn a user's brief ("this happened, people are asking X, I want to say Y
+ * without Z") into the message they would have written on their best day.
+ */
+export const WRITING_CRAFT = `Writing from a brief (the user describes a situation and asks for a message):
+- First work out: who it is from (use the role and organisation the user gives — "I'm the president of X" → sign off with that role and X), who will read it, how that reader feels, and what the user wants the reader to understand, accept or do.
+- Include every point the user wants made, in the order that is kindest to the reader: thank them and acknowledge their situation → what happened and why (for example safety or weather) → where things stand and what still applies to them → what you are asking of them (for example time) → what happens next and when → a warm close.
+- Match the user's intent exactly, including what they do NOT want to say. If they don't want to refuse or burn people, never write a refusal ("we're not in a position to…", "we can't process…"): say the request has been noted and will be reviewed, without promising an outcome.
+- Turn the user's informal, emotional or private wording into professional language; never repeat metaphors or remarks that were meant only for you.
+- Use every fact the user gave (names, roles, organisation, dates, amounts) and work out what follows from them. Never leave a placeholder for something you can work out; use placeholders only for what is truly unknown (the recipient's first name; the sender's own name if it was not given).
+- Keep within any word limit the user sets.
+- Before you finish, check the brief point by point: every option, offer or possibility the user mentions (for example "we may later offer a credit or a move to another event") must appear in the message — as a possibility, never as a promise.
+- Sound like a thoughtful person: warm, specific and sincere — no clichés, no filler, no legal stiffness.`;
+
 export const WRITING_LAYOUT = `Layout (the app displays **bold** as real bold text and copies it as bold into Gmail or Outlook; this section overrides any "no markdown / no bold" formatting preference above):
-- Lay the message out like a polished professional email: greeting on its own line; short paragraphs (2–4 sentences) separated by one blank line; the sign-off and the sender's name on separate lines.
+- Lay the message out like a polished professional email: greeting on its own line; short paragraphs (2–4 sentences) separated by one blank line; then the sign-off block — "Kind regards,", the name, the role and the organisation each on its own line with NO blank lines between them.
 - When the user asks for bold, highlighted or emphasised words, headings or figures, ALWAYS do it by wrapping exactly those words in **double asterisks** — never say you can't, and never use capitals, quotes or other symbols instead.
 - A longer message with several topics may use short section headings: a bold line on its own (for example **Payment summary**) with a blank line before it. Short messages need no headings.
 - Lists: "- " bullets or "1." numbers, one item per line. Key figures in a list may be bold.
@@ -275,7 +298,7 @@ export const WRITING_LAYOUT = `Layout (the app displays **bold** as real bold te
 
 export function buildTextRequest({ tool, instruction, client, job, task, workspace, prompt, options = {}, history = [], references = [], revision = null, memories = [], files = {} }) {
   const clientCtx = buildClientContext(client, tool);
-  const blocks = [];
+  const blocks = [todayLine()];
   blocks.push(`<client_context>\n${JSON.stringify({ client: clientCtx, job: jobContext(job), task: taskContext(task), workspaceDefaults: workspace || undefined }, null, 2)}\n</client_context>`);
 
   const directions = toolDirections(tool, options, { clientWarranty: client?.approved_warranty_wording });
@@ -302,7 +325,7 @@ export function buildTextRequest({ tool, instruction, client, job, task, workspa
   blocks.push(`<user_request>\n${neutralise(userText)}\n</user_request>`);
 
   const instructions = buildInstructionText(instruction);
-  return { instructions: tool === 'writing' ? `${instructions}\n\n${WRITING_LAYOUT}` : instructions, input: blocks.join('\n\n') };
+  return { instructions: tool === 'writing' ? `${instructions}\n\n${WRITING_CRAFT}\n\n${WRITING_LAYOUT}` : instructions, input: blocks.join('\n\n') };
 }
 
 /** Image prompts have no separate instructions field, so everything is composed into one prompt. */
@@ -453,7 +476,7 @@ When converting or recreating a supplied document, reproduce ALL of its content 
 No chatter before or after the document (no "Here is…", no questions).`;
 
 export function buildAnswerRequest({ client, job, task, workspace, prompt, history = [], references = [], imageLabels = [], memories = [], files = {}, asDocument = false }) {
-  const blocks = [`<client_context>\n${JSON.stringify({ client: buildClientContext(client, 'writing'), job: jobContext(job), task: taskContext(task), workspaceDefaults: workspace || undefined }, null, 2)}\n</client_context>`];
+  const blocks = [todayLine(), `<client_context>\n${JSON.stringify({ client: buildClientContext(client, 'writing'), job: jobContext(job), task: taskContext(task), workspaceDefaults: workspace || undefined }, null, 2)}\n</client_context>`];
   const mem = memoryBlock(memories);
   if (mem) blocks.push(mem);
   const hist = historyBlock(history);

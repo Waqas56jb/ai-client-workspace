@@ -160,7 +160,7 @@ describe('writing', () => {
     expect(out.currentVersion).toMatchObject({ versionNumber: 1, content: expect.stringContaining('Subject: Spring sale') });
 
     const call = calls.responses.at(-1);
-    expect(call.max_output_tokens).toBe(1500);
+    expect(call.max_output_tokens).toBe(4000);
     expect(call.instructions).toContain('business communication assistant');
     expect(call.instructions).toContain('Australian business English');
     expect(call.instructions).toContain('Do not add subject lines unless requested');

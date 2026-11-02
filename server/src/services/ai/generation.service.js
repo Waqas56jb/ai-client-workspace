@@ -45,7 +45,7 @@ export function resolveModel(tool, instruction, { edit = false } = {}) {
   // Refuse before anything is stored, so no run or error message is created for a request that cannot run.
   if (!env.OPENAI_API_KEY) throw new AppError('AI_NOT_CONFIGURED', 'The AI service is not configured on the server. Ask your administrator to set it up.', 503);
   const requested = instruction?.modelConfiguration?.model;
-  const model = tool === 'image' ? resolveImageModel(requested, { edit }) : resolveTextModel(requested);
+  const model = tool === 'image' ? resolveImageModel(requested, { edit }) : resolveTextModel(requested || env.OPENAI_WRITING_MODEL);
   if (!model) throw new AppError('AI_CONFIG_ERROR', 'The AI model configured for this tool is not supported. Update AI Instructions or the server configuration.', 500);
   return model;
 }

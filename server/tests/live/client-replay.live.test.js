@@ -143,3 +143,27 @@ describe('replay: payment email from a spreadsheet (recording of 31 Oct)', () =>
     expect(v.content).toMatch(/Muhammad/);
   });
 });
+
+describe('replay: swim club refund email (recording of 2 Nov — compared with ChatGPT)', () => {
+  it('a soft, complete email: real date, the sender’s role, no refusal, within 300 words, written by the writing model', async () => {
+    const brief = `On the president of the Melbourne open water swimming club. Our biggest Swimming event of the year is on Melbourne Cup day which is tomorrow. Unfortunately due to the weather we had to reschedule our event. The rescheduling date is this Saturday the seventh. When people bought their tickets online, we mentioned that the rescheduling date, in case of whether was the seventh. I said this afternoon we made a call that the event would be postponed tomorrow as we could see the weather was gonna be bad and we reschedule it to Saturday. We're getting in in data with people now asking for refunds. It's not that we don't want to give a refund, but at the moment we're still concentrating on trying to get an event off the ground on Saturday. I don't want to burn people either and tell them they don't get a refund as down the track who's to say that we're not gonna have to reschedule this Saturday as well due to weather. Even though they're not necessarily entitled to a discount, we may offer them down the track the ability to change to one of our other events during the year as we have them on many occasions. I want to write an email that we can send to clients if they email us to ask us for a refund. I need it to be nice and softly toned but in a nice way to basically tell them look at this stage the event is scheduled for Saturday as per the conditions when they signed up. It doesn't mean to say down the track we might not look at giving a refund or a credit for other events but at this time we've just rescheduled the event and that's all we are concentrating on doing. We are a nonprofit organisation and work on a limited funds but more importantly work on limited resources. We understand that people might be doing a tough and want a refund however it's a bit like them stepping on our grave straight away if that makes sense. Please write me an email in 300 words or less to explain all this in a nice way to bye us some bit of time of one to 2 weeks. Does this make sense?`;
+    const r = await say({ prompt: brief }, 'swim club refund email');
+    expect(r.status).toBe(202);
+    const [run] = await dbRead('select model from public.ai_workspace_generation_runs where id = $1', [r.done.id ?? r.done.generationId]);
+    const [v] = await dbRead('select v.content from public.ai_workspace_outputs o join public.ai_workspace_output_versions v on v.id = o.current_version_id where o.id = $1', [r.done.outputs[0].id]);
+    console.log(`\n[swim club — ${run?.model}]\n`, v.content);
+    expect(run?.model).toBe('gpt-5.5');
+    const text = v.content;
+    expect(text).toMatch(/Saturday,? 7(th)? November/i); // the date is worked out, never "7 [month]"
+    expect(text).not.toMatch(/\[month\]|\[date\]/i);
+    expect(text).toMatch(/President/);
+    expect(text).toMatch(/Melbourne Open Water Swimming Club/i);
+    expect(text).toMatch(/not-for-profit|non-?profit/i);
+    expect(text).toMatch(/(one|1)\s*(to|–|-)\s*(two|2) weeks/i);
+    expect(text).toMatch(/credit|another (club )?event|other events/i);
+    // what the client did NOT want: a refusal, or their private metaphor
+    expect(text).not.toMatch(/not in a position to (process|offer|give)|not (currently )?processing refund|unable to (offer|give|process) (a )?refund|no refunds?/i);
+    expect(text).not.toMatch(/grave/i);
+    expect(text.split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(300);
+  });
+});

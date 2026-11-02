@@ -35,6 +35,9 @@ const schema = z.object({
   OPENAI_TEXT_MODEL: z.string().default('gpt-5.4-mini'),
   OPENAI_IMAGE_MODEL: z.string().default('gpt-image-2'),
   OPENAI_IMAGE_EDIT_MODEL: z.string().optional(),
+  // Model that writes drafts and chat answers — the quality the client compares with ChatGPT.
+  // The router and the memory summary stay on OPENAI_TEXT_MODEL / OPENAI_ROUTER_MODEL (fast and cheap).
+  OPENAI_WRITING_MODEL: z.string().default('gpt-5.5'),
   // Model that works out what each chat message needs (defaults to OPENAI_TEXT_MODEL)
   OPENAI_ROUTER_MODEL: z.string().optional(),
   OPENAI_TIMEOUT_MS: z.coerce.number().int().min(5000).max(600000).default(180000),

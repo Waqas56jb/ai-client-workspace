@@ -2,7 +2,7 @@ import { getOpenAI } from '../../config/openai.js';
 import { AppError } from '../../utils/errors.js';
 import { cleanModelText } from './parsers.js';
 
-export const DEFAULT_MAX_OUTPUT_TOKENS = 1500;
+export const DEFAULT_MAX_OUTPUT_TOKENS = 4000;
 export const MAX_OUTPUT_TOKENS_CAP = 8000;
 
 /** max_output_tokens from the instruction's model_configuration (bounded). */
