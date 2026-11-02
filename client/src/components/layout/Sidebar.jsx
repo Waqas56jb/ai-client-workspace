@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronsLeft, ChevronsRight, ChevronsUpDown, LogOut, Settings, SlidersHorizontal, UserRound, Check } from 'lucide-react';
 import { Avatar, Menu, Tooltip } from '@/components/ui';
@@ -10,15 +10,17 @@ import { toast } from 'sonner';
 import { isMockMode } from '@/lib/config';
 
 export function BrandMark({ size = 30 }) {
+  // unique per mark: a duplicate id inside a hidden copy (display: none) leaves the gradient blank
+  const gid = `sf-g-${useId().replace(/:/g, '')}`;
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
       <defs>
-        <linearGradient id="sf-g" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#8B7CFF" />
           <stop offset="1" stopColor="#5145D0" />
         </linearGradient>
       </defs>
-      <rect width="32" height="32" rx="8" fill="url(#sf-g)" />
+      <rect width="32" height="32" rx="8" fill={`url(#${gid})`} />
       <path d="M10 20.5c1.4 1.3 3.4 2 5.6 2 3 0 5-1.4 5-3.6 0-4.6-9.8-2.6-9.8-7.3 0-2 1.9-3.4 4.6-3.4 1.9 0 3.6.6 4.8 1.6" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
     </svg>
   );
