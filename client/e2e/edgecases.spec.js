@@ -254,7 +254,8 @@ test('answers appear word by word while the AI writes them (streaming)', async (
   // sample the growing answer while it is still being written
   const lengths = [];
   for (let i = 0; i < 40 && (await live.count()); i += 1) {
-    lengths.push(((await live.innerText().catch(() => '')) || '').length);
+    // short timeout: the live block can disappear between count() and innerText()
+    lengths.push(((await live.innerText({ timeout: 1000 }).catch(() => '')) || '').length);
     await page.waitForTimeout(250);
   }
   const growing = lengths.filter((n, i) => i > 0 && n > lengths[i - 1]).length;
@@ -322,6 +323,7 @@ test('client report: “make the headings bold” shows real bold (no asterisks)
 
   // Copy puts real formatting (HTML with <strong>) and clean text (no **) on the clipboard
   await latest.getByRole('button', { name: 'Copy', exact: true }).click();
+  await expect(page.getByText('Copied to clipboard')).toBeVisible(); // the copy has finished
   const clip = await page.evaluate(async () => {
     const [item] = await navigator.clipboard.read();
     const html = item.types.includes('text/html') ? await (await item.getType('text/html')).text() : '';
