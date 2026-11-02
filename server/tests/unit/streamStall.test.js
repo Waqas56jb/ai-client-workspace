@@ -13,7 +13,12 @@ vi.mock('../../src/config/openai.js', () => ({
       create: async (params, opts) => {
         calls.push(params);
         const kind = plan.shift();
+        if (!params.stream) return { id: 'r2', status: 'completed', output_text: 'Whole answer, start to finish.', usage: {} };
         return (async function* events() {
+          if (kind === 'text-then-close') {
+            yield { type: 'response.output_text.delta', delta: 'Your refund request has been noted and we have a' };
+            return;
+          }
           if (kind === 'text-then-hang') yield { type: 'response.output_text.delta', delta: 'Half an ans' };
           if (kind === 'hang' || kind === 'text-then-hang') {
             await new Promise((resolve, reject) => opts.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))));
@@ -42,5 +47,13 @@ describe('stalled answer streams', () => {
     calls.length = 0;
     await expect(generateText({ model: 'gpt-5.4-mini', instructions: 'x', input: 'y', maxTokens: 100, raw: true, onDelta: () => {} })).rejects.toMatchObject({ code: 'AI_STREAM_STALLED' });
     expect(calls).toHaveLength(1);
+  });
+
+  it('a stream that closes mid-answer without its final event is never saved half-written (client report, 3 Nov)', async () => {
+    plan = ['text-then-close'];
+    calls.length = 0;
+    const r = await generateText({ model: 'gpt-5.5', instructions: 'x', input: 'y', maxTokens: 100, raw: true, onDelta: () => {} });
+    expect(r.text).toBe('Whole answer, start to finish.');
+    expect(calls.map((p) => !!p.stream)).toEqual([true, false]);
   });
 });

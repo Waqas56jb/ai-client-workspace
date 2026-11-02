@@ -53,7 +53,10 @@ async function streamed(client, params, onDelta) {
   // A stall before the first word is retried once; a stall in the middle fails honestly (Retry in the chat).
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await streamOnce(client, params, onDelta);
+      const result = await streamOnce(client, params, onDelta);
+      // The stream closed without its final event (dropped connection): the text is partial,
+      // so fetch the whole answer in one go instead of saving half a draft.
+      return result.cutOff ? await client.responses.create(params) : result;
     } catch (err) {
       if (err?.code !== 'AI_STREAM_STALLED' || err.wroteText || attempt >= 2) throw err;
     }
@@ -94,7 +97,8 @@ async function streamOnce(client, params, onDelta) {
   } finally {
     clearTimeout(idle);
   }
-  return { ...(final || {}), status: final?.status || 'completed', output_text: text || final?.output_text || '' };
+  if (!final) return { cutOff: true };
+  return { ...final, status: final.status || 'completed', output_text: text || final.output_text || '' };
 }
 
 /** Applies one stream event; returns the text so far. */
