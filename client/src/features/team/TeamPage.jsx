@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Info, Mail, Pencil, Users } from 'lucide-react';
-import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Page, PageHeader, SkeletonRows, Table, Td, Th } from '@/components/ui';
-import { useBreadcrumbs, usePageTitle, useUsers } from '@/hooks';
+import { Info, KeyRound, Mail, Pencil, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
+import { Avatar, Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, Menu, Page, PageHeader, SkeletonRows, Table, Td, Th } from '@/components/ui';
+import { useBreadcrumbs, usePageTitle, useServiceMutation, useUsers } from '@/hooks';
+import { userService } from '@/services';
 import { useAuthStore } from '@/store/authStore';
 import { formatDateTime, timeAgo } from '@/lib/utils';
 import { ProfileDialog } from './ProfileDialog';
+import { AddMemberDialog, PasswordDialog } from './MemberDialogs';
 import { isMockMode } from '@/lib/config';
 
 export default function TeamPage() {
@@ -13,10 +15,28 @@ export default function TeamPage() {
   const { data: users, isLoading, error, refetch } = useUsers();
   const me = useAuthStore((s) => s.user);
   const [editing, setEditing] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [passwordFor, setPasswordFor] = useState(null);
+  const [removing, setRemoving] = useState(null);
+  const isAdmin = !isMockMode && !!me?.isAdmin;
+  const remove = useServiceMutation((u) => userService.remove(u.id), {
+    success: (_, u) => `${u.name} was removed and can no longer sign in`,
+    onSuccess: () => setRemoving(null),
+  });
 
   return (
     <Page>
-      <PageHeader title="Team" description="Everyone with access to this StudioFlow AI workspace." />
+      <PageHeader
+        title="Team"
+        description="Everyone with access to this StudioFlow AI workspace."
+        actions={
+          isAdmin && (
+            <Button variant="primary" icon={UserPlus} onClick={() => setAdding(true)}>
+              Add member
+            </Button>
+          )
+        }
+      />
 
       <div className="mb-5 flex gap-2.5 rounded-xl border border-info/20 bg-info-soft px-4 py-3 text-[13px] leading-5 text-[#1F4E9E]">
         <Info size={16} className="mt-0.5 shrink-0 text-info" aria-hidden />
@@ -25,10 +45,15 @@ export default function TeamPage() {
             The first release supports <strong className="font-semibold">three users with shared workspace access</strong>; role-based restrictions are not in scope. Real
             authentication and persistent user records arrive with the backend — editing these demo records does not create or change real accounts.
           </p>
+        ) : isAdmin ? (
+          <p>
+            You are an <strong className="font-semibold">administrator</strong>: add people, change their passwords or remove them. Removed people can no longer sign in;
+            their past work stays in the workspace. Nobody can create an account on their own.
+          </p>
         ) : (
           <p>
-            All members share the same workspace access. You can edit <strong className="font-semibold">your own</strong> profile (name, role and avatar colour); accounts,
-            sign-in emails and active status are managed by the workspace administrator.
+            All members share the same workspace access. You can edit <strong className="font-semibold">your own</strong> profile (name, role and avatar colour); accounts and
+            passwords are managed by the workspace administrator.
           </p>
         )}
       </div>
@@ -68,6 +93,11 @@ export default function TeamPage() {
                       <div className="flex items-center gap-2">
                         <span className="truncate text-[14px] font-semibold text-ink">{u.name}</span>
                         {me?.id === u.id && <Badge tone="brand">You</Badge>}
+                        {u.isAdmin && (
+                          <Badge tone="neutral">
+                            <ShieldCheck size={12} className="mr-0.5" aria-hidden /> Admin
+                          </Badge>
+                        )}
                       </div>
                       <a href={`mailto:${u.email}`} className="inline-flex items-center gap-1 rounded text-xs text-muted hover:text-brand focus-ring">
                         <Mail size={12} aria-hidden /> {u.email}
@@ -87,11 +117,23 @@ export default function TeamPage() {
                   </Badge>
                 </Td>
                 <Td className="text-right">
-                  {(isMockMode || me?.id === u.id) && (
-                    <Button size="sm" icon={Pencil} onClick={() => setEditing(u)} aria-label={`Edit profile for ${u.name}`}>
-                      Edit profile
-                    </Button>
-                  )}
+                  <div className="flex items-center justify-end gap-1.5">
+                    {(isMockMode || me?.id === u.id) && (
+                      <Button size="sm" icon={Pencil} onClick={() => setEditing(u)} aria-label={`Edit profile for ${u.name}`}>
+                        Edit profile
+                      </Button>
+                    )}
+                    {isAdmin && me?.id !== u.id && (
+                      <Menu
+                        label={`Manage ${u.name}`}
+                        width={210}
+                        items={[
+                          { label: 'Change password', icon: KeyRound, onSelect: () => setPasswordFor(u) },
+                          { label: 'Delete account', icon: Trash2, danger: true, onSelect: () => setRemoving(u) },
+                        ]}
+                      />
+                    )}
+                  </div>
                 </Td>
               </tr>
             ))}
@@ -100,6 +142,19 @@ export default function TeamPage() {
       )}
 
       <ProfileDialog user={editing} open={!!editing} onClose={() => setEditing(null)} />
+      <AddMemberDialog open={adding} onClose={() => setAdding(false)} />
+      <PasswordDialog user={passwordFor} open={!!passwordFor} onClose={() => setPasswordFor(null)} />
+      <ConfirmDialog
+        open={!!removing}
+        onClose={() => setRemoving(null)}
+        onConfirm={() => remove.mutate(removing)}
+        loading={remove.isPending}
+        tone="danger"
+        icon={Trash2}
+        title={`Delete ${removing?.name}’s account?`}
+        description="They are signed out and can no longer sign in. Chats, drafts and approvals they made stay in the workspace."
+        confirmLabel="Delete account"
+      />
     </Page>
   );
 }

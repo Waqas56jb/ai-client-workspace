@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 const fieldBase =
   'w-full rounded-lg border bg-surface text-ink placeholder:text-subtle transition-colors outline-none focus:border-brand focus:ring-3 focus:ring-brand/15 disabled:bg-canvas disabled:text-muted';
 
-const INPUT_SIZES = { sm: 'h-8 text-[13px]', md: 'h-9 text-[14px]' };
+const INPUT_SIZES = { sm: 'h-8 text-[13px]', md: 'h-9 text-[14px]', lg: 'h-11 rounded-xl text-[15px]' };
 
 export const Input = forwardRef(function Input({ className, invalid, icon: Icon, size = 'md', ...props }, ref) {
   const sizeCls = INPUT_SIZES[size] || INPUT_SIZES.md;

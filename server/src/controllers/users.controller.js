@@ -9,3 +9,8 @@ export const updateMe = handler(async (req, res) => ok(res, await svc.updateProf
 export const update = handler(async (req, res) =>
   ok(res, await svc.updateProfile(req.user.id, req.params.userId, req.body), { message: 'Profile updated.' }),
 );
+export const create = handler(async (req, res) => ok(res, await svc.createMember(req.user, req.body), { status: 201, message: 'Account created.' }));
+export const setPassword = handler(async (req, res) =>
+  ok(res, await svc.setMemberPassword(req.user, req.params.userId, req.body.password), { message: 'Password changed.' }),
+);
+export const remove = handler(async (req, res) => ok(res, await svc.removeMember(req.user, req.params.userId), { message: 'Member removed.' }));

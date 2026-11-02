@@ -57,10 +57,10 @@ export default function LoginPage() {
 
   return (
     <AuthLayout>
-      <h1 className="font-display text-[26px] font-bold tracking-[-0.01em] text-ink">Sign in</h1>
-      <p className="mt-1.5 text-[14px] text-muted">Welcome back. Sign in to your StudioFlow AI workspace.</p>
+      <h1 className="font-display text-[28px] font-bold tracking-[-0.015em] text-ink">Welcome back</h1>
+      <p className="mt-1.5 text-[15px] text-muted">Sign in to your StudioFlow AI workspace.</p>
 
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-7 space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-7 space-y-5">
         {authError && (
           <div role="alert" className="flex gap-2.5 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2.5 text-[13px] text-danger">
             <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden />
@@ -72,7 +72,7 @@ export default function LoginPage() {
         )}
 
         <Field label="Email" error={errors.email?.message} required>
-          <Input type="email" icon={Mail} autoComplete="email" placeholder={isMockMode ? 'you@studioflow.demo' : 'you@company.com'} {...register('email')} />
+          <Input type="email" size="lg" icon={Mail} autoComplete="email" autoFocus placeholder={isMockMode ? 'you@studioflow.demo' : 'you@company.com'} {...register('email')} />
         </Field>
 
         <div>
@@ -89,9 +89,9 @@ export default function LoginPage() {
           </Field>
         </div>
 
-        <Checkbox label="Remember me on this browser" {...register('remember')} />
+        <Checkbox label="Keep me signed in on this device" {...register('remember')} />
 
-        <Button type="submit" variant="primary" size="lg" className="w-full" loading={isSubmitting} iconRight={ArrowRight}>
+        <Button type="submit" variant="primary" size="lg" className="h-12 w-full rounded-xl text-[15.5px]" loading={isSubmitting} iconRight={ArrowRight}>
           {isSubmitting ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
@@ -143,8 +143,8 @@ export default function LoginPage() {
       </div>
       </>
       ) : (
-        <p className="mt-6 text-xs leading-5 text-muted">
-          Accounts are created by your workspace administrator. Use the email and password you were given, or reset your password if you’ve forgotten it.
+        <p className="mt-6 border-t border-line pt-5 text-center text-[13px] leading-5 text-muted">
+          No account? Ask your workspace administrator to add you.
         </p>
       )}
     </AuthLayout>
@@ -162,7 +162,7 @@ function PasswordInput({ show, onToggle, id, invalid, ...props }) {
         placeholder="Enter your password"
         aria-invalid={invalid || undefined}
         className={cn(
-          'h-9 w-full rounded-lg border bg-surface pl-9 pr-10 text-[14px] text-ink outline-none transition-colors placeholder:text-subtle focus:border-brand focus:ring-3 focus:ring-brand/15',
+          'h-11 w-full rounded-xl border bg-surface pl-9 pr-11 text-[15px] text-ink outline-none transition-colors placeholder:text-subtle focus:border-brand focus:ring-3 focus:ring-brand/15',
           invalid ? 'border-danger' : 'border-line',
         )}
         {...props}
@@ -170,7 +170,7 @@ function PasswordInput({ show, onToggle, id, invalid, ...props }) {
       <button
         type="button"
         onClick={onToggle}
-        className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-subtle hover:bg-canvas hover:text-ink focus-ring"
+        className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-subtle hover:bg-canvas hover:text-ink focus-ring"
         aria-label={show ? 'Hide password' : 'Show password'}
         aria-pressed={show}
       >

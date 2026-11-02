@@ -13,7 +13,7 @@ import { logger } from '../utils/logger.js';
  * 3. Requires an ACTIVE row in ai_workspace_users for that auth user. Any other
  *    Supabase user (e.g. from another project on the same instance) is rejected.
  *
- * Sets req.user = { id, email, name, role, avatarColor } and req.accessToken.
+ * Sets req.user = { id, email, name, role, avatarColor, isAdmin } and req.accessToken.
  * Client-supplied user ids are never trusted.
  */
 
@@ -81,6 +81,7 @@ export async function authenticate(req, _res, next) {
       name: profile.display_name,
       role: profile.role_title,
       avatarColor: profile.avatar_colour,
+      isAdmin: !!profile.is_admin,
     };
     req.accessToken = match[1];
     next();
@@ -104,7 +105,7 @@ export function clearAuthCache(userId) {
 function loadProfile(userId) {
   return getDatabase().withUser(userId, async (tx) => {
     const { rows } = await tx.query(
-      `select id, display_name, email, role_title, avatar_colour, is_active
+      `select id, display_name, email, role_title, avatar_colour, is_active, is_admin
          from public.ai_workspace_users where id = $1`,
       [userId],
     );

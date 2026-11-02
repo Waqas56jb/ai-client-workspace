@@ -14,3 +14,16 @@ export const updateProfileSchema = z
   })
   .partial()
   .refine((v) => Object.keys(v).length > 0, { message: 'Provide at least one field to update.' });
+
+const password = z.string().min(8, 'Use at least 8 characters.').max(72, 'Use at most 72 characters.');
+
+/** Administrator: a new member account. */
+export const createUserSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required.').max(120),
+  email: z.string().trim().toLowerCase().email('Enter a valid email address.').max(320),
+  role: z.string().trim().max(80).default('Team member'),
+  password,
+  isAdmin: z.boolean().default(false),
+});
+
+export const setPasswordSchema = z.object({ password });

@@ -5,6 +5,7 @@
  *   npm run users:provision -- --email jo@agency.com --name "Jo Smith" --role "Copywriter"
  *   npm run users:provision -- --email jo@agency.com --deactivate
  *   npm run users:provision -- --email jo@agency.com --activate
+ *   npm run users:provision -- --email jo@agency.com --name "Jo Smith" --admin   (may manage members on the Team page)
  *
  * New accounts: the password is read from the PROVISION_PASSWORD environment
  * variable if set (never pass passwords as CLI arguments — they end up in shell
@@ -65,6 +66,7 @@ try {
 
     let authUser = await findAuthUserByEmail(email);
     let tempPassword = null;
+    const managed = !authUser; // created here → administrators may set its password; a linked account is never changed
     if (authUser && !flag('link-existing')) {
       throw new Error(`A Supabase Auth user with ${email} already exists. It may belong to another project. Re-run with --link-existing only if this person should also be a workspace member.`);
     }
@@ -77,10 +79,11 @@ try {
     }
 
     await db.query(
-      `insert into public.ai_workspace_users (id, display_name, email, role_title, is_active)
-       values ($1, $2, $3, $4, true)
-       on conflict (id) do update set display_name = excluded.display_name, role_title = excluded.role_title, is_active = true`,
-      [authUser.id, name, email, role],
+      `insert into public.ai_workspace_users (id, display_name, email, role_title, is_active, is_admin, is_managed, removed_at)
+       values ($1, $2, $3, $4, true, $5, $6, null)
+       on conflict (id) do update set display_name = excluded.display_name, role_title = excluded.role_title, is_active = true,
+         is_admin = excluded.is_admin or public.ai_workspace_users.is_admin, removed_at = null`,
+      [authUser.id, name, email, role, flag('admin'), managed],
     );
     console.log(`✔ ${name} <${email}> is an active workspace member (${authUser.id}).`);
     if (tempPassword) {

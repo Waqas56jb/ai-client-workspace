@@ -49,4 +49,29 @@ export const userService = {
         return apiClient.patch(id === selfId || id === 'me' ? '/users/me' : `/users/${id}`, body);
       },
     }),
+
+  /* Administrator account management (the API checks the caller is an administrator). */
+  create: (values) =>
+    call({
+      mock: () => {
+        throw new ServiceError('Adding accounts needs the live workspace.');
+      },
+      api: () => apiClient.post('/users', values),
+    }),
+
+  setPassword: (id, password) =>
+    call({
+      mock: () => {
+        throw new ServiceError('Passwords are managed by the live workspace.');
+      },
+      api: () => apiClient.put(`/users/${id}/password`, { password }),
+    }),
+
+  remove: (id) =>
+    call({
+      mock: () => {
+        throw new ServiceError('Removing accounts needs the live workspace.');
+      },
+      api: () => apiClient.delete(`/users/${id}`),
+    }),
 };

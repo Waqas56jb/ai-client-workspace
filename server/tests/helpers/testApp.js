@@ -82,6 +82,31 @@ export function fakeStorage() {
   return api;
 }
 
+/** In-memory Supabase Auth admin API (createUser / updateUserById / deleteUser); new users also land in auth.users. */
+export function fakeAuthAdmin(db) {
+  const calls = [];
+  const admin = {
+    calls,
+    createUser: async ({ email, password, app_metadata: appMeta }) => {
+      calls.push({ op: 'create', email, password, appMeta });
+      const { rows } = await db.query('select id from auth.users where lower(email) = lower($1)', [email]);
+      if (rows[0]) return { data: null, error: { status: 422, message: 'A user with this email address has already been registered' } };
+      const id = crypto.randomUUID();
+      await db.query('insert into auth.users (id, email) values ($1, $2)', [id, email]);
+      return { data: { user: { id, email } }, error: null };
+    },
+    updateUserById: async (id, attrs) => {
+      calls.push({ op: 'update', id, ...attrs });
+      return { data: { user: { id } }, error: null };
+    },
+    deleteUser: async (id) => {
+      calls.push({ op: 'delete', id });
+      return { data: null, error: null };
+    },
+  };
+  return admin;
+}
+
 /**
  * Creates a fully wired test app.
  * @param {{ openai?: object }} opts — optional fake OpenAI client
@@ -102,6 +127,7 @@ export async function createTestContext({ openai } = {}) {
     return u ? { id: u.id, email: u.email } : null;
   });
   const storage = fakeStorage();
+  storage.auth = { admin: fakeAuthAdmin(db) };
   setSupabaseClients({ service: storage, auth: { auth: { getUser: async () => ({ data: null, error: { message: 'unused' } }) } } });
   if (openai) setOpenAI(openai);
 
