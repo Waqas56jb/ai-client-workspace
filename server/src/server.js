@@ -10,6 +10,10 @@ const server = app.listen(env.PORT, () => {
   // Runs that were in flight when a previous process stopped can never finish.
   startRunReconciliation();
 });
+// A proxy in front (CloudFront keeps idle connections 60 s) must never reuse a connection
+// Node has already closed — that surfaces as a random 502. Keep ours open longer.
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;
 
 let shuttingDown = false;
 async function shutdown(signal) {

@@ -11,6 +11,8 @@
 export const config = {
   dataMode: import.meta.env.VITE_DATA_MODE === 'mock' ? 'mock' : 'api',
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1',
+  // 'supabase' (Supabase Auth) or 'local' (the API's own sign-in — AWS deployment)
+  authMode: import.meta.env.VITE_AUTH_MODE === 'local' ? 'local' : 'supabase',
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL || '',
   supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
   mockLatencyMs: Number(import.meta.env.VITE_MOCK_LATENCY_MS ?? 250),

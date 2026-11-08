@@ -52,7 +52,10 @@ const GUARDS = [
 
 const db = createScriptClient();
 await db.connect();
-const admin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+// QA_PLATFORM=aws: the files are in S3 (bucket from QA_S3_BUCKET), the database is RDS (DATABASE_MIGRATION_URL)
+const admin = process.env.QA_PLATFORM === 'aws'
+  ? (await import('../../src/config/s3Storage.js')).s3Storage
+  : createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
 try {
   await db.query('begin');

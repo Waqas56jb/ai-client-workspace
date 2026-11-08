@@ -29,7 +29,7 @@ export const STORAGE_INFO = {
     label: 'Cloud storage',
     tone: 'success',
     icon: HardDrive,
-    help: 'Stored privately in Supabase Storage.',
+    help: 'Stored privately in secure cloud storage.',
   },
   generated: {
     label: 'Generated',

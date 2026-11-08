@@ -24,7 +24,10 @@
     "qa:smoke": "node scripts/qa/smoke.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1164.0",
+    "@aws-sdk/s3-request-presigner": "^3.1164.0",
     "@supabase/supabase-js": "^2.117.3",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "docx": "^9.15.1",
     "dotenv": "^18.0.7",

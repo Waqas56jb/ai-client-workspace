@@ -1,4 +1,5 @@
 import { config, isMockMode } from './config';
+import { localAuthClient } from './localAuthClient';
 
 /**
  * Browser Supabase client — API mode only.
@@ -14,6 +15,7 @@ let clientPromise = null;
 
 export function getSupabase() {
   if (isMockMode) return Promise.reject(new Error('Supabase is not used in demo mode.'));
+  if (config.authMode === 'local') return Promise.resolve(localAuthClient); // AWS: sign-in through our own API
   if (!clientPromise) {
     clientPromise = import('@supabase/supabase-js').then(({ createClient }) => {
       if (!config.supabaseUrl || !config.supabaseAnonKey) {

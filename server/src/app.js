@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -12,7 +13,17 @@ import apiRouter from './routes/index.js';
 export function createApp() {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 1); // Railway terminates TLS at its proxy
+  app.set('trust proxy', 1); // one proxy in front: Railway's, or CloudFront on AWS
+
+  // AWS: CloudFront adds a secret header; anything that reaches the server some other way is refused.
+  if (env.ORIGIN_SECRET) {
+    const expected = Buffer.from(env.ORIGIN_SECRET);
+    app.use((req, res, next) => {
+      const given = Buffer.from(String(req.get('x-origin-verify') || ''));
+      if (given.length === expected.length && crypto.timingSafeEqual(given, expected)) return next();
+      res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Forbidden.' } });
+    });
+  }
 
   app.use(requestContext);
   app.use(

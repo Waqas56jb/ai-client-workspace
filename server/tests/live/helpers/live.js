@@ -64,15 +64,25 @@ export function anonSupabase() {
   return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+/** QA_PLATFORM=aws: the API's own sign-in (POST /auth/login); otherwise Supabase Auth. Session or null. */
+export async function passwordLogin(email, password) {
+  if (process.env.QA_PLATFORM === 'aws') {
+    const res = await fetch(`${API}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    return res.ok ? (await res.json()).data.session : null;
+  }
+  const client = anonSupabase();
+  const { data, error } = await client.auth.signInWithPassword({ email, password });
+  return error ? null : { ...data.session, user: data.user, client };
+}
+
 const sessions = new Map();
 /** Signs in through real Supabase Auth and returns { token, refreshToken, userId, client }. Cached per account. */
 export async function signIn(key, { fresh = false } = {}) {
   if (!fresh && sessions.has(key)) return sessions.get(key);
   const { email, password } = account(key);
-  const client = anonSupabase();
-  const { data, error } = await client.auth.signInWithPassword({ email, password });
-  if (error) throw new Error(`sign-in ${key} failed: ${error.message}`);
-  const s = { token: data.session.access_token, refreshToken: data.session.refresh_token, userId: data.user.id, client };
+  const session = await passwordLogin(email, password);
+  if (!session) throw new Error(`sign-in ${key} failed`);
+  const s = { token: session.access_token, refreshToken: session.refresh_token, userId: session.user.id, client: session.client };
   if (!fresh) sessions.set(key, s);
   return s;
 }

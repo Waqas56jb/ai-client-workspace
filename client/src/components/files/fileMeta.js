@@ -24,7 +24,7 @@ export const STORAGE_INFO = {
   supabase: {
     label: 'Cloud storage',
     tone: 'success',
-    description: 'Stored privately in Supabase Storage. Previews and downloads use short-lived signed links.',
+    description: 'Stored privately in secure cloud storage. Previews and downloads use short-lived signed links.',
   },
   'record-only': {
     label: 'Record only',

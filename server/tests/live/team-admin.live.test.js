@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { anonSupabase, closeDb, del, get, post, put, RUN_ID, signIn, sleep } from './helpers/live.js';
+import { closeDb, del, get, passwordLogin, post, put, RUN_ID, signIn, sleep } from './helpers/live.js';
 import { createScriptClient } from '../../scripts/lib/pg.js';
 
 /**
@@ -13,8 +13,8 @@ describe('team administration (live)', () => {
   let memberId;
   const setAdmin = (on) => pg.query('update public.ai_workspace_users set is_admin = $1 where id = $2', [on, process.env.QA_MEMBER_A_ID]);
   const tryLogin = async (password) => {
-    const { data, error } = await anonSupabase().auth.signInWithPassword({ email, password });
-    return error ? null : data.session.access_token;
+    const session = await passwordLogin(email, password);
+    return session?.access_token || null;
   };
 
   beforeAll(async () => {

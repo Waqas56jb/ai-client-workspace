@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { env } from './env.js';
+import { adminApi, localAuthClient } from './localAuth.js';
+import { s3Storage } from './s3Storage.js';
 
 const noPersist = { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } };
 
@@ -9,7 +11,7 @@ const noPersist = { auth: { persistSession: false, autoRefreshToken: false, dete
  */
 let authClient = null;
 export function getAuthClient() {
-  if (!authClient) authClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, noPersist);
+  if (!authClient) authClient = env.PLATFORM === 'aws' ? localAuthClient : createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, noPersist);
   return authClient;
 }
 
@@ -21,7 +23,10 @@ export function getAuthClient() {
  */
 let serviceClient = null;
 export function getServiceClient() {
-  if (!serviceClient) serviceClient = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, noPersist);
+  if (!serviceClient) {
+    // PLATFORM=aws: files in S3, accounts in our own Postgres — same interface as supabase-js
+    serviceClient = env.PLATFORM === 'aws' ? { ...s3Storage, auth: { admin: adminApi } } : createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, noPersist);
+  }
   return serviceClient;
 }
 

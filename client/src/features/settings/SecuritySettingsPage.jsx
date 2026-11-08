@@ -6,7 +6,7 @@ import { Avatar, Badge, Button, Card, CardHeader, ConfirmDialog, Field, Input, M
 import { useBreadcrumbs, usePageTitle } from '@/hooks';
 import { useAuthStore } from '@/store/authStore';
 import { formatDateTime, timeAgo } from '@/lib/utils';
-import { isMockMode } from '@/lib/config';
+import { config, isMockMode } from '@/lib/config';
 import { authService } from '@/services';
 
 const KEY_POINTS = [
@@ -14,6 +14,13 @@ const KEY_POINTS = [
   'The browser talks to our own API; the server adds keys when calling OpenAI or Supabase. Keys are never sent to, or stored in, the frontend.',
   'Anything prefixed VITE_ is bundled into the public JavaScript and visible to anyone — only non-secret values (like the API base URL) may use it.',
   'This demo makes no OpenAI calls at all: AI output is simulated in the browser.',
+];
+
+const AWS_KEY_POINTS = [
+  'The OpenAI API key, the database password and the sign-in signing key live only on the server (encrypted AWS Parameter Store). They are never sent to the browser.',
+  'You sign in through the StudioFlow API: passwords are stored only as bcrypt hashes; your browser keeps a short-lived access token that renews automatically.',
+  'The API verifies the token and your active workspace membership on every request; database row-level security applies to everything you read or change.',
+  'Files are kept in a private S3 bucket and opened through short-lived signed links. The server only accepts traffic that comes through the site’s CloudFront address.',
 ];
 
 const API_KEY_POINTS = [
@@ -49,7 +56,7 @@ export default function SecuritySettingsPage() {
       <Card>
         <CardHeader
           title="Current session"
-          description={isMockMode ? 'Demo session stored in this browser' : 'Supabase Auth session in this browser (refreshed automatically)'}
+          description={isMockMode ? 'Demo session stored in this browser' : config.authMode === 'local' ? 'Your session in this browser (refreshed automatically)' : 'Supabase Auth session in this browser (refreshed automatically)'}
           icon={MonitorSmartphone}
           action={
             <Badge tone={isMockMode ? 'warning' : 'success'} dot>
@@ -85,7 +92,7 @@ export default function SecuritySettingsPage() {
                 <MetaRow label="Access token expires">
                   {session?.expiresAt ? `${formatDateTime(session.expiresAt)} · renewed automatically while you’re signed in` : '—'}
                 </MetaRow>
-                <MetaRow label="Provider">Supabase Auth (email & password)</MetaRow>
+                <MetaRow label="Provider">{config.authMode === 'local' ? 'StudioFlow sign-in (email & password)' : 'Supabase Auth (email & password)'}</MetaRow>
               </>
             )}
             <MetaRow label="Mode">{session?.mode === 'api' ? 'API (StudioFlow server)' : 'Demo (in-browser check)'}</MetaRow>
@@ -118,7 +125,7 @@ export default function SecuritySettingsPage() {
       <Card>
         <CardHeader title="API keys & secrets" icon={KeyRound} />
         <ul className="space-y-3 p-5">
-          {(isMockMode ? KEY_POINTS : API_KEY_POINTS).map((p) => (
+          {(isMockMode ? KEY_POINTS : config.authMode === 'local' ? AWS_KEY_POINTS : API_KEY_POINTS).map((p) => (
             <li key={p} className="flex gap-2.5 text-[13px] leading-6 text-muted">
               <ShieldCheck size={16} className="mt-1 shrink-0 text-success" aria-hidden />
               {p}

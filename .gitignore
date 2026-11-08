@@ -10,3 +10,5 @@ dist/
 # Screen recordings and other local media (never commit)
 *.mov
 *.mp4
+server/.deploy/
+client/dist-aws/

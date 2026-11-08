@@ -10,7 +10,7 @@ import { useAuthStore } from '@/store/authStore';
 import { authService } from '@/services';
 import { loginSchema } from '@/lib/validation';
 import { cn } from '@/lib/utils';
-import { isMockMode } from '@/lib/config';
+import { config, isMockMode } from '@/lib/config';
 import { AuthLayout, DemoAuthNotice } from './AuthLayout';
 
 export default function LoginPage() {
@@ -80,9 +80,15 @@ export default function LoginPage() {
             <label htmlFor="login-password" className="text-[13px] font-medium text-ink">
               Password<span className="ml-0.5 text-danger" aria-hidden>*</span>
             </label>
-            <Link to="/forgot-password" className="rounded text-[12.5px] font-medium text-brand hover:underline focus-ring">
-              Forgot password?
-            </Link>
+            {config.authMode === 'local' ? (
+              <span className="text-[12.5px] text-muted" title="Your administrator can set a new password on the Team page.">
+                Forgot it? Ask your admin
+              </span>
+            ) : (
+              <Link to="/forgot-password" className="rounded text-[12.5px] font-medium text-brand hover:underline focus-ring">
+                Forgot password?
+              </Link>
+            )}
           </div>
           <Field error={errors.password?.message} id="login-password">
             <PasswordInput show={showPassword} onToggle={() => setShowPassword((s) => !s)} {...register('password')} />

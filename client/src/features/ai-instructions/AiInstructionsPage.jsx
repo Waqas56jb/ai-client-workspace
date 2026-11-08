@@ -41,7 +41,7 @@ export default function AiInstructionsPage() {
         <div className="flex gap-2.5 rounded-xl border border-line bg-surface px-4 py-3 text-[13px] leading-5 text-muted">
           <ServerCog size={16} className="mt-0.5 shrink-0 text-brand" aria-hidden />
           <p>
-            In production, instructions are stored in Supabase and sent to OpenAI by the Node.js server. API keys never live in the frontend.
+            In production, instructions are stored in the workspace database and sent to OpenAI by the Node.js server. API keys never live in the frontend.
           </p>
         </div>
       </div>

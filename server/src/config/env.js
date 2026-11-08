@@ -16,9 +16,15 @@ const schema = z.object({
   CLIENT_ORIGIN: z.string().min(1).default('http://localhost:5173'),
   FRONTEND_URL: z.string().url().optional(),
 
-  SUPABASE_URL: z.string().url(),
-  SUPABASE_ANON_KEY: z.string().min(20),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(20),
+  // 'supabase' (Supabase Auth + Storage) or 'aws' (own sign-in in Postgres + S3; see aws/README.md)
+  PLATFORM: z.enum(['supabase', 'aws']).default('supabase'),
+  SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_ANON_KEY: z.string().min(20).optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
+  JWT_SECRET: z.string().min(32).optional(),
+  AWS_REGION: z.string().default('ap-southeast-2'),
+  // Set on AWS: CloudFront adds this header, so requests that bypass CloudFront are refused
+  ORIGIN_SECRET: z.string().min(16).optional(),
   STORAGE_BUCKET: z.string().regex(/^[a-z0-9-]+$/).default('ai-workspace-files'),
 
   // Direct Postgres connection (Supabase pooler). Use the transaction pooler (6543) for the API.
@@ -62,6 +68,12 @@ function load() {
   if (!env.DATABASE_URL && !(env.DATABASE_HOST && env.DATABASE_USER && env.DATABASE_PASSWORD)) {
     throw new Error('Invalid environment configuration:\n  - DATABASE_URL or DATABASE_HOST/DATABASE_USER/DATABASE_PASSWORD is required');
   }
+  if (env.PLATFORM === 'supabase' && !(env.SUPABASE_URL && env.SUPABASE_ANON_KEY && env.SUPABASE_SERVICE_ROLE_KEY)) {
+    throw new Error('Invalid environment configuration:\n  - SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY are required (or set PLATFORM=aws)');
+  }
+  if (env.PLATFORM === 'aws' && !env.JWT_SECRET) {
+    throw new Error('Invalid environment configuration:\n  - JWT_SECRET (32+ characters) is required when PLATFORM=aws');
+  }
   env.OPENAI_IMAGE_EDIT_MODEL = env.OPENAI_IMAGE_EDIT_MODEL || env.OPENAI_IMAGE_MODEL;
   env.CLIENT_ORIGINS = env.CLIENT_ORIGIN.split(',').map((s) => s.trim().replace(/\/$/, '')).filter(Boolean);
   env.isProduction = env.NODE_ENV === 'production';
@@ -72,7 +84,8 @@ function load() {
 // Tests inject their own configuration and never need real credentials.
 export const env = process.env.NODE_ENV === 'test' && !process.env.SUPABASE_URL
   ? Object.freeze({
-      NODE_ENV: 'test', isTest: true, isProduction: false, PORT: 0,
+      NODE_ENV: 'test', isTest: true, isProduction: false, PORT: 0, PLATFORM: 'supabase', AWS_REGION: 'ap-southeast-2',
+      JWT_SECRET: 'test-jwt-secret-test-jwt-secret-0123456789',
       CLIENT_ORIGINS: ['http://localhost:5173'], CLIENT_ORIGIN: 'http://localhost:5173',
       SUPABASE_URL: 'http://supabase.test', SUPABASE_ANON_KEY: 'test-anon-key-xxxxxxxxxxxx', SUPABASE_SERVICE_ROLE_KEY: 'test-service-key-xxxxxxxxx',
       STORAGE_BUCKET: 'ai-workspace-files', OPENAI_API_KEY: 'test', OPENAI_TEXT_MODEL: 'gpt-5.4-mini',
@@ -88,6 +101,7 @@ export function safeConfigSummary() {
     nodeEnv: env.NODE_ENV,
     port: env.PORT,
     clientOrigins: env.CLIENT_ORIGINS,
+    platform: env.PLATFORM,
     supabaseUrl: env.SUPABASE_URL,
     storageBucket: env.STORAGE_BUCKET,
     openaiConfigured: Boolean(env.OPENAI_API_KEY),

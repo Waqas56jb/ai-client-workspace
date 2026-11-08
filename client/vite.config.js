@@ -59,7 +59,9 @@ export default defineConfig(({ command, mode }) => {
     );
   }
   if (!mock) {
-    const missing = ['VITE_API_BASE_URL', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'].filter((k) => !env[k]);
+    // VITE_AUTH_MODE=local (AWS): sign-in goes through the API, so no Supabase variables are needed
+    const required = env.VITE_AUTH_MODE === 'local' ? ['VITE_API_BASE_URL'] : ['VITE_API_BASE_URL', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'];
+    const missing = required.filter((k) => !env[k]);
     if (command === 'build' && missing.length) {
       throw new Error(
         `Missing required build variables for API mode: ${missing.join(', ')}. ` +

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import health from './health.routes.js';
 import auth from './auth.routes.js';
+import session from './session.routes.js';
 import users from './users.routes.js';
 import clients from './clients.routes.js';
 import jobs from './jobs.routes.js';
@@ -28,6 +29,7 @@ import exportsRouter from './exports.routes.js';
 const router = Router();
 
 router.use('/health', health);
+router.use(session); // sign-in, refresh, sign-out (PLATFORM=aws)
 router.use(authenticate);
 [auth, users, clients, memories, exportsRouter, jobs, tasks, conversations, ai, files, versions, approvals, presets, instructions, search, activity, dashboard, settings].forEach((r) =>
   router.use(r),
