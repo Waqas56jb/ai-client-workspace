@@ -15,6 +15,15 @@ describe('draft formatting (client report: bold headings came out as asterisks)'
     expect(WRITING_LAYOUT).toMatch(/keep its existing bold/);
   });
 
+  it('a table the user asks for is written as a real table, never refused or turned into bullets (client report: asked twice, got bullets)', () => {
+    const r = buildTextRequest({ tool: 'writing', instruction, client, prompt: 'I prefer it with a table and down the bottom a total of $2500.' });
+    expect(r.instructions).toMatch(/whenever the user asks for a table[^\n]*ALWAYS write a real markdown table/);
+    expect(r.instructions).toMatch(/never fall back to bullets/);
+    expect(r.instructions).toMatch(/total as the last row in bold/);
+    expect(r.instructions).toMatch(/turn a list into a table, convert it/);
+    expect(r.instructions).not.toMatch(/Never use[^\n]*tables/);
+  });
+
   it('other tools do not get it', () => {
     expect(buildTextRequest({ tool: 'vehicle', instruction, client, prompt: 'x' }).instructions).not.toContain(WRITING_LAYOUT);
   });

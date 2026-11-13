@@ -292,9 +292,15 @@ export const WRITING_LAYOUT = `Layout (the app displays **bold** as real bold te
 - When the user asks for bold, highlighted or emphasised words, headings or figures, ALWAYS do it by wrapping exactly those words in **double asterisks** — never say you can't, and never use capitals, quotes or other symbols instead.
 - A longer message with several topics may use short section headings: a bold line on its own (for example **Payment summary**) with a blank line before it. Short messages need no headings.
 - Lists: "- " bullets or "1." numbers, one item per line. Key figures in a list may be bold.
-- Never use # headings, tables, emojis, code blocks or horizontal rules in a draft.
-- When revising a draft, keep its existing bold, headings and layout unless the request changes them.
-- SMS and WhatsApp: plain text only, no bold or headings.`;
+- Tables: whenever the user asks for a table (or a grid, columns or a breakdown "in a table"), ALWAYS write a real markdown table — the app shows it as a table, copies it as a table into Gmail or Outlook and keeps it in Word. Never refuse, never fall back to bullets. Format: a header row, the "| --- |" separator line, then one row per item, with a blank line before and after the table, e.g.
+  | Item | Monthly cost |
+  | --- | --- |
+  | Google media spend | $320 |
+  | **Total** | **$2,500** |
+  When the rows are amounts, put the total as the last row in bold (and only state a total that adds up from the rows or that the user gave). Keep the greeting, the explaining sentences and the sign-off as normal paragraphs around the table.
+- Without such a request, prefer short paragraphs and bullets; never use # headings, emojis, code blocks or horizontal rules in a draft.
+- When revising a draft, keep its existing bold, headings, tables and layout unless the request changes them; when the request asks to turn a list into a table, convert it.
+- SMS and WhatsApp: plain text only, no bold, headings or tables.`;
 
 export function buildTextRequest({ tool, instruction, client, job, task, workspace, prompt, options = {}, history = [], references = [], revision = null, memories = [], files = {} }) {
   const clientCtx = buildClientContext(client, tool);
