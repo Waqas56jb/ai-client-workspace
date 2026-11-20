@@ -10,6 +10,7 @@ export function markdownToPlain(text = '') {
     .filter((l) => !/^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l) && !/^\s*```/.test(l))
     .map((l) =>
       l
+        .replace(/\[\[\s*(Image\s+\d{1,3})\s*\]\]/gi, '[$1]')
         .replace(/^\s*#{1,6}\s+/, '')
         .replace(/^(\s*)[-*]\s+/, '$1• ')
         .replace(/^\s*\|(.*)\|\s*$/, (_, row) => row.split('|').map((c) => c.trim()).join('\t'))

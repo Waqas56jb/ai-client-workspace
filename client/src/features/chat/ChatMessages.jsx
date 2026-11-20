@@ -183,7 +183,7 @@ export function AssistantMessage({ message: m, isLast, busy, outputsById, versio
 
   // A direct answer (no saved draft or picture): the text itself is the result.
   const isAnswer = !(m.outputIds || []).length && m.status !== 'clarify';
-  if (isAnswer) return <AnswerMessage message={m} />;
+  if (isAnswer) return <AnswerMessage message={m} images={images} />;
 
   return (
     <li className="flex gap-3">
@@ -336,7 +336,7 @@ function WordButton({ messageId, title, prominent = false }) {
 }
 
 /** A direct answer: the text is the result; Copy and a Word download — a file card first when a document was asked for. */
-function AnswerMessage({ message: m }) {
+function AnswerMessage({ message: m, images }) {
   const copy = async () => ((await copyFormatted(m.content)) ? toast.success('Copied.') : toast.error('Your browser blocked copying.'));
   const title = docTitle(m.content) || 'StudioFlow AI document';
   const asFile = m.exportAs === 'docx';
@@ -349,7 +349,7 @@ function AnswerMessage({ message: m }) {
             <WordButton messageId={m.id} title={title} prominent />
           </div>
         )}
-        <RichText text={m.content} className="break-words text-[17px] leading-[1.65] text-ink" />
+        <RichText text={m.content} images={images} className="break-words text-[17px] leading-[1.65] text-ink" />
         <div className="mt-2 flex flex-wrap items-center gap-1">
           <button type="button" onClick={copy} className="inline-flex h-10 items-center gap-1.5 rounded-lg px-2.5 text-[14.5px] font-medium text-muted hover:bg-canvas hover:text-ink focus-ring">
             <Copy size={16} aria-hidden /> Copy

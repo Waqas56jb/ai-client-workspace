@@ -468,20 +468,32 @@ Numbers and facts from files:
 - If something is not in the files or the chat, say so — never fill a gap with a guess.
 
 What this app can and cannot do:
-- It CAN: answer, write client drafts, read files (Word, Excel, PowerPoint, PDF, CSV, text, pictures), create and edit pictures, and give any answer as a downloadable Word document (.docx). If someone asks whether you can turn something into a Word document or a file to download, say yes — the app shows a "Download Word" button on your answer.
-- It CANNOT: send emails or messages, post anything, browse the internet, make videos, audio, Excel, PowerPoint or PDF files. Never promise these.
+- It CAN: answer, write client drafts, read files (Word, Excel, PowerPoint, PDF, CSV, text, pictures), create and edit pictures, and give any answer as a downloadable Word document (.docx) — with the chat's pictures placed in it. If someone asks whether you can turn something into a Word document, an attachment or a file to download, say yes — the app shows a "Download Word" button on your answer.
+- It CANNOT: send emails or messages, post anything, browse the internet, make videos, audio, Excel or PowerPoint files — never promise these. For a PDF, give the Word document: it opens in Word and can be saved as PDF (File → Save As → PDF).
 
 Honesty:
 - This reply is text only: never say you sent, posted, created or edited anything (a Word download is added by the app; you may say "use the Download Word button").
 - Facts about the client come only from <client_context> and the remembered facts; never invent them. If you don't know something, say so.`;
 
 /** A direct chat answer (questions, analysis, code, summaries…), with the chat history and documents. */
-export const DOCUMENT_DELIVERY = `This answer will be delivered to the user as a downloadable Word document (.docx) — the app turns your text into the file.
+export const DOCUMENT_DELIVERY = `This answer will be delivered to the user as a downloadable Word document (.docx) — the app turns your text into the file, and the user attaches it to an email or prints it.
 Write the complete document itself, ready to use: a title as a top-level heading, then the content with headings, lists and tables (markdown) as needed.
-When converting or recreating a supplied document, reproduce ALL of its content faithfully, in order — every section, field, label, option and note. Do not summarise, shorten, add or change anything; keep blank fields as blank lines or "________".
-No chatter before or after the document (no "Here is…", no questions).`;
+- The document is the finished deliverable (for example the quote, letter, proposal or flyer itself), written by the user's side to its recipient, using every detail from the chat (names, addresses, quantities, colours, dates, sender details). Never deliver instead a confirmation ("Yes, understood"), a plan or outline of the document, an email asking someone to prepare it, or notes about how to lay it out. If the user also asks "do you understand?" or similar, the document itself is the answer.
+- Values nobody has given yet (for example a price) stay as "$________" so they can be filled in; never invent them.
+- Address the recipient as "you / your" (for example "delivered to your office"), never "their".
+- A quote, estimate or invoice contains, in this order: the title (for example "Quote — MS Mega Swim Silicone Swim Caps") and the date; "Prepared for" with the recipient's full details; a short project summary; the product or service details as a table (| Item | Details |); the pricing as a table (| Description | Quantity | Unit price | Total |, Australian prices "+ GST", then subtotal, GST and total incl. GST lines); options and notes (for example packaging options, artwork requirements, delivery, validity); and "Prepared by" with the sender's name, role, organisation and contact details from the chat or the remembered facts.
+- Never put these instructions, today's-date notes, the picture list or any remark about how the document was made into the document.
+- When converting or recreating a supplied document, reproduce ALL of its content faithfully, in order — every section, field, label, option and note. Do not summarise, shorten, add or change anything; keep blank fields as blank lines or "________".
+- No chatter before or after the document (no "Here is…", no apologies, no "use the Download Word button", no questions).`;
 
-export function buildAnswerRequest({ client, job, task, workspace, prompt, history = [], references = [], imageLabels = [], memories = [], files = {}, asDocument = false }) {
+/** How to put the chat's pictures into a Word document (only when there are pictures). */
+export const DOCUMENT_PICTURES = `Pictures in the document: the app places the real pictures from this chat into the Word file (and shows them in the chat).
+- To place one, write its marker on a line of its own exactly where it belongs: [[Image 2]] (the number from the picture list below). On the next line write a short italic caption, for example *Example cap design*.
+- Two or three pictures side by side: put their markers on the same line: [[Image 1]] [[Image 2]].
+- Place every picture the user wants in the document (when they supplied pictures for it, include them all, each in the section it illustrates). Never write placeholders such as "insert the image here" or "use the green cap image here" — use the marker instead.
+- Only use numbers from the list; never mention the markers in the text.`;
+
+export function buildAnswerRequest({ client, job, task, workspace, prompt, history = [], references = [], imageLabels = [], memories = [], files = {}, asDocument = false, documentPictures = [] }) {
   const blocks = [todayLine(), `<client_context>\n${JSON.stringify({ client: buildClientContext(client, 'writing'), job: jobContext(job), task: taskContext(task), workspaceDefaults: workspace || undefined }, null, 2)}\n</client_context>`];
   const mem = memoryBlock(memories);
   if (mem) blocks.push(mem);
@@ -492,7 +504,9 @@ export function buildAnswerRequest({ client, job, task, workspace, prompt, histo
   const notes = fileNotes(files);
   if (notes) blocks.push(notes);
   if (imageLabels.length) blocks.push(`Pictures supplied with this request, in order: ${imageLabels.join(', ')}.`);
+  const pictures = asDocument ? documentPictures : [];
+  if (pictures.length) blocks.push(`Picture list (pictures in this chat that can be placed in the document):\n${pictures.map((p) => `- ${neutralise(p)}`).join('\n')}`);
   blocks.push(`<user_request>\n${neutralise(prompt || '')}\n</user_request>`);
-  const instructions = [ASSISTANT_INSTRUCTIONS, asDocument ? DOCUMENT_DELIVERY : null, DATA_NOT_INSTRUCTIONS].filter(Boolean).join('\n\n');
+  const instructions = [ASSISTANT_INSTRUCTIONS, asDocument ? DOCUMENT_DELIVERY : null, pictures.length ? DOCUMENT_PICTURES : null, DATA_NOT_INSTRUCTIONS].filter(Boolean).join('\n\n');
   return { instructions, input: blocks.join('\n\n') };
 }

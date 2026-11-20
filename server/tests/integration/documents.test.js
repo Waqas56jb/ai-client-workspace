@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import JSZip from 'jszip';
+import sharp from 'sharp';
 import ExcelJS from 'exceljs';
 import { authHeader, createTestContext, USERS } from '../helpers/testApp.js';
 import { aiLimiter } from '../../src/middleware/rateLimiter.js';
@@ -18,7 +19,7 @@ const ids = { ev: 'a7000000-0000-4000-8000-000000000001', other: 'a7100000-0000-
 const A = authHeader(USERS.amelia);
 const calls = { router: [], text: [] };
 const blank = { summary: '', writing_format: 'unknown', source_image: null, reference_images: [], look_at_images: [], use_files: [], change: '', preserve: [], edit_scope: 'local', use_brand_style: false, width: null, height: null, question: null, limitation: null, remember: [], forget: [] };
-const fake = { route: () => ({ ...blank, action: 'answer' }) };
+const fake = { route: () => ({ ...blank, action: 'answer' }), text: null };
 const openai = {
   responses: {
     create: async (params) => {
@@ -28,7 +29,7 @@ const openai = {
       }
       calls.text.push(params);
       const summary = /running summary of a long chat/.test(params.instructions || '');
-      return { id: 't', model: params.model, status: 'completed', output_text: summary ? 'Original goal: plan the open day.' : 'Here is my answer.', usage: {} };
+      return { id: 't', model: params.model, status: 'completed', output_text: summary ? 'Original goal: plan the open day.' : fake.text?.(params) || 'Here is my answer.', usage: {} };
     },
   },
   images: { generate: async () => ({ data: [] }), edit: async () => ({ data: [] }) },
@@ -251,5 +252,46 @@ describe('Word documents (.docx)', () => {
     expect((await request(app).get(`/api/v1/exports/docx?messageId=${done.userMessage.id}`).set(A)).status).toBe(404);
     expect((await request(app).get('/api/v1/exports/docx').set(A)).status).toBe(400);
     expect((await request(app).get(`/api/v1/exports/docx?messageId=${done.assistantMessage.id}`)).status).toBe(401);
+  });
+
+  it('a quote asked for as an attachment places the chat’s pictures: the Word file holds the real images (client video: "Use the green cap image here")', async () => {
+    const task = (await request(app).post('/api/v1/assistant/session').set(A).send({ clientId: ids.ev })).body.data.taskId;
+    const png = (r, g, b) => sharp({ create: { width: 400, height: 300, channels: 3, background: { r, g, b } } }).png().toBuffer();
+    const colours = (await upload(await png(200, 50, 200), 'cap-colours.png', 'image/png', task)).body.data.id;
+    const green = (await upload(await png(20, 180, 60), 'green-cap.png', 'image/png', task)).body.data.id;
+    fake.route = () => ({ ...blank, action: 'answer' });
+    const first = await poll((await say({ prompt: 'The green cap is the design, the other shows the colours.', attachmentIds: [colours, green] }, task)).body.data.generationId);
+    const conversationId = first.conversation.id;
+
+    fake.route = () => ({ ...blank, action: 'answer', deliver_as: 'docx' });
+    fake.text = () => ['# Quote', '', 'Prepared for Kate O’Meara.', '', '## Example cap design', '', '[[Image 2]]', '*Example cap design*', '', '## Colours', '', '[[Image 1]] [[Image 2]]', '', '[[Image 9]]'].join('\n');
+    const done = await poll((await say({ conversationId, prompt: 'I prefer the quote as an attachment like a Word doc or a PDF, with those images. Do you understand?' }, task)).body.data.generationId);
+    fake.text = null;
+    expect(done.assistantMessage.exportAs).toBe('docx');
+    const req = calls.text.at(-1);
+    expect(req.instructions).toMatch(/write its marker on a line of its own/);
+    expect(req.instructions).toMatch(/Never deliver instead a confirmation/);
+    expect(JSON.stringify(req.input)).toContain('Image 1 — photo the user added: “cap-colours.png”');
+    expect(JSON.stringify(req.input)).toContain('Image 2 — photo the user added: “green-cap.png”');
+    expect(req.input[0].content.filter((c) => c.type === 'input_image')).toHaveLength(2); // the model sees them
+
+    const file = await request(app).get(`/api/v1/exports/docx?messageId=${done.assistantMessage.id}`).set(A).buffer(true).parse((r, cb) => {
+      const chunks = [];
+      r.on('data', (c) => chunks.push(c));
+      r.on('end', () => cb(null, Buffer.concat(chunks)));
+    });
+    expect(file.status).toBe(200);
+    const zip = await JSZip.loadAsync(file.body);
+    const media = Object.keys(zip.files).filter((n) => n.startsWith('word/media/'));
+    expect(media.length).toBe(2); // the two pictures (Word stores a repeated picture once)
+    const xml = await zip.file('word/document.xml').async('string');
+    expect(xml.match(/<pic:pic\b/g)).toHaveLength(3); // placed three times: Image 2, then Image 1 + Image 2 side by side
+    expect(xml).not.toContain('[[Image');
+    expect(xml).toContain('[Image 9 not available]');
+    expect(xml).toContain('Prepared for Kate O’Meara.');
+
+    // Another user cannot pull these pictures through an export.
+    const other = await request(app).get(`/api/v1/exports/docx?messageId=${done.assistantMessage.id}`).set(authHeader(USERS.outsider));
+    expect([401, 403, 404]).toContain(other.status);
   });
 });

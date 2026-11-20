@@ -11,6 +11,9 @@ const HEADING = /^(#{1,6})\s+/;
 const TABLE_ROW = /^\s*\|.*\|\s*$/;
 const TABLE_RULE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 const RULE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
+/** A line that only places chat pictures in a document: "[[Image 1]]" or "[[Image 1]] [[Image 2]]". */
+const IMAGE_LINE = /^\s*(?:\[\[\s*Image\s+\d{1,3}\s*\]\]\s*)+$/i;
+const imageLabels = (line) => [...line.matchAll(/\[\[\s*Image\s+(\d{1,3})\s*\]\]/gi)].map((m) => `Image ${Number(m[1])}`);
 
 const cells = (line) =>
   line
@@ -19,15 +22,18 @@ const cells = (line) =>
     .split('|')
     .map((c) => c.trim());
 
-/** @returns {Array<{type:'h',level:number,text:string}|{type:'p',lines:string[]}|{type:'ul'|'ol',items:string[]}|{type:'code',text:string}|{type:'table',rows:string[][]}|{type:'hr'}>} */
+/** @returns {Array<{type:'h',level:number,text:string}|{type:'p',lines:string[]}|{type:'ul'|'ol',items:string[]}|{type:'code',text:string}|{type:'table',rows:string[][]}|{type:'hr'}|{type:'images',labels:string[]}>} */
 export function parseBlocks(text) {
   const lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
   const out = [];
   let i = 0;
-  const isStart = (l, next) => /^```/.test(l) || BULLET.test(l) || NUMBER.test(l) || HEADING.test(l) || RULE.test(l) || (TABLE_ROW.test(l) && TABLE_RULE.test(next || ''));
+  const isStart = (l, next) => /^```/.test(l) || IMAGE_LINE.test(l) || BULLET.test(l) || NUMBER.test(l) || HEADING.test(l) || RULE.test(l) || (TABLE_ROW.test(l) && TABLE_RULE.test(next || ''));
   while (i < lines.length) {
     const line = lines[i];
-    if (/^```/.test(line)) {
+    if (IMAGE_LINE.test(line)) {
+      out.push({ type: 'images', labels: imageLabels(line) });
+      i += 1;
+    } else if (/^```/.test(line)) {
       const code = [];
       i += 1;
       while (i < lines.length && !/^```/.test(lines[i])) code.push(lines[(i += 1) - 1]);
@@ -105,6 +111,7 @@ export function markdownToHtml(text) {
       if (b.type === 'ul' || b.type === 'ol') return `<${b.type} style="margin:0 0 12px;padding-left:24px;">${b.items.map((it) => `<li>${inlineHtml(it)}</li>`).join('')}</${b.type}>`;
       if (b.type === 'code') return `<pre style="font-family:Consolas,monospace;font-size:10pt;">${esc(b.text)}</pre>`;
       if (b.type === 'hr') return '<hr>';
+      if (b.type === 'images') return `<p style="margin:0 0 12px;color:#6b7280;"><em>[${esc(b.labels.join(', '))}]</em></p>`;
       return `<table style="border-collapse:collapse;margin:0 0 12px;">${b.rows
         .map((r, i) => `<tr>${r.map((c) => `<${i ? 'td' : 'th'} style="border:1px solid #d1d5db;padding:4px 8px;text-align:left;">${inlineHtml(c)}</${i ? 'td' : 'th'}>`).join('')}</tr>`)
         .join('')}</table>`;
@@ -123,6 +130,7 @@ export function markdownToPlain(text) {
       if (b.type === 'ol') return b.items.map((it, n) => `${n + 1}. ${inlinePlain(it)}`).join('\n');
       if (b.type === 'code') return b.text;
       if (b.type === 'hr') return '';
+      if (b.type === 'images') return `[${b.labels.join(', ')}]`;
       return b.rows.map((r) => r.map(inlinePlain).join('\t')).join('\n');
     })
     .join('\n\n')

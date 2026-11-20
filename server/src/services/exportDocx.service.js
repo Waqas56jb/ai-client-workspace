@@ -1,13 +1,60 @@
-import { AlignmentType, BorderStyle, Document, HeadingLevel, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from 'docx';
+import { AlignmentType, BorderStyle, Document, HeadingLevel, ImageRun, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from 'docx';
+import sharp from 'sharp';
 
 /**
  * Turns an answer or a draft (plain text with the light markdown the chat uses)
  * into a real Word document (.docx): headings, paragraphs, bullet and numbered
  * lists, **bold**, *italic*, `code`, fenced code blocks, markdown tables and
  * horizontal rules. Nothing is invented — only the text given is written.
+ *
+ * Pictures: a line made only of markers such as [[Image 2]] (the chat's numbering)
+ * becomes the real picture(s), side by side when there are several on the line.
  */
 
 const FONT = 'Calibri';
+
+/** A line that only places pictures: "[[Image 1]]" or "[[Image 1]] [[Image 2]]". */
+export const IMAGE_LINE = /^\s*(?:\[\[\s*Image\s+\d{1,3}\s*\]\]\s*)+$/i;
+export const imageLabelsIn = (line) => [...String(line).matchAll(/\[\[\s*Image\s+(\d{1,3})\s*\]\]/gi)].map((m) => `Image ${Number(m[1])}`);
+/** Every picture label a text places, in order, without repeats. */
+export const placedImageLabels = (text) => [
+  ...new Set(
+    String(text || '')
+      .split(/\r?\n/)
+      .filter((l) => IMAGE_LINE.test(l))
+      .flatMap(imageLabelsIn),
+  ),
+];
+
+// Usable width of an A4/Letter page with default margins is ~6.3in ≈ 600px at 96 dpi.
+const PAGE_PX = 600;
+const MAX_PICTURE_PX = 420;
+
+function pictures(line, images) {
+  const labels = imageLabelsIn(line);
+  const found = labels.map((l) => images.get(l)).filter(Boolean);
+  if (!found.length) return new Paragraph({ children: [new TextRun({ text: `[${labels.join(', ')} not available]`, italics: true, color: '808080', font: FONT })] });
+  const box = Math.min(MAX_PICTURE_PX, Math.floor((PAGE_PX - (found.length - 1) * 16) / found.length));
+  const children = [];
+  found.forEach((img, n) => {
+    const scale = Math.min(1, box / img.width, box / img.height);
+    if (n) children.push(new TextRun({ text: '    ', font: FONT }));
+    children.push(new ImageRun({ type: img.type, data: img.data, transformation: { width: Math.round(img.width * scale), height: Math.round(img.height * scale) } }));
+  });
+  return new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 120, after: 60 }, children });
+}
+
+/**
+ * A stored picture made ready for Word: upright, at most 1600px, JPEG (PNG when it
+ * has transparency, so a logo on a clear background stays clear).
+ * @returns {Promise<{data: Buffer, width: number, height: number, type: 'jpg'|'png'}>}
+ */
+export async function docxPicture(buffer) {
+  const { hasAlpha } = await sharp(buffer).metadata();
+  const img = sharp(buffer).rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true });
+  const { data, info } = hasAlpha ? await img.png().toBuffer({ resolveWithObject: true }) : await img.flatten({ background: '#ffffff' }).jpeg({ quality: 88 }).toBuffer({ resolveWithObject: true });
+  return { data, width: info.width, height: info.height, type: hasAlpha ? 'png' : 'jpg' };
+}
 
 /** **bold**, *italic*, `code` → runs */
 function runs(text, base = {}) {
@@ -55,8 +102,12 @@ function table(rows) {
   });
 }
 
-/** @returns {Array<Paragraph|Table>} */
-export function markdownToDocxBlocks(markdown) {
+/**
+ * @param {string} markdown
+ * @param {Map<string, {data: Buffer, width: number, height: number, type: 'jpg'|'png'}>} [images] by label ("Image 2")
+ * @returns {Array<Paragraph|Table>}
+ */
+export function markdownToDocxBlocks(markdown, images = new Map()) {
   const lines = String(markdown || '').replace(/\r\n/g, '\n').split('\n');
   const blocks = [];
   let i = 0;
@@ -77,6 +128,17 @@ export function markdownToDocxBlocks(markdown) {
       while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(cellsOf(lines[(i += 1) - 1]));
       blocks.push(table(rows));
       blocks.push(new Paragraph({ children: [] }));
+      continue;
+    }
+    if (IMAGE_LINE.test(line)) {
+      blocks.push(pictures(line, images));
+      i += 1;
+      // A caption right under the picture(s) — "*Example cap design*" — is centred with them.
+      const caption = (lines[i] || '').trim().match(/^\*([^*].*?)\*$/);
+      if (caption) {
+        blocks.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 160 }, children: [new TextRun({ text: caption[1], italics: true, size: 20, color: '595959', font: FONT })] }));
+        i += 1;
+      }
       continue;
     }
     const h = line.match(/^(#{1,4})\s+(.*)$/);
@@ -100,10 +162,10 @@ export function markdownToDocxBlocks(markdown) {
 }
 
 /**
- * @param {{ title?: string, text: string }} p
+ * @param {{ title?: string, text: string, images?: Map<string, object> }} p
  * @returns {Promise<Buffer>} the .docx bytes
  */
-export async function buildDocx({ title, text }) {
+export async function buildDocx({ title, text, images }) {
   const doc = new Document({
     creator: 'StudioFlow AI',
     title: title || 'Document',
@@ -111,7 +173,7 @@ export async function buildDocx({ title, text }) {
     numbering: {
       config: [{ reference: 'numbers', levels: [{ level: 0, format: 'decimal', text: '%1.', alignment: AlignmentType.START, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }] }],
     },
-    sections: [{ children: markdownToDocxBlocks(text) }],
+    sections: [{ children: markdownToDocxBlocks(text, images) }],
   });
   return Packer.toBuffer(doc);
 }

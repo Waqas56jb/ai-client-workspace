@@ -25,6 +25,7 @@ import { processGeneratedImage, requestImages } from './image.service.js';
 import { changeCheck, editStrategy, toPng } from './imageProcessing.js';
 import sharp from 'sharp';
 import { clientMemories, maybeSummarise } from './memory.service.js';
+import { buildImageRegistry, describeImage } from './imageRegistry.js';
 import { endStream, pushText, startStream } from '../../jobs/streamHub.js';
 import {
   WRITING_FORMAT_LABELS,
@@ -100,7 +101,9 @@ async function loadRunContext(tx, run) {
   const imageInputs = await loadImageInputs(tx, ro.imageInputs || [], task);
   const vision = await loadImageInputs(tx, ro.vision || [], task);
   const memories = tool === 'image' ? [] : await clientMemories(tx, client.id);
-  return { ro, tool, task, job, client, instruction, preset, attachments, history, workspace, target, logo, imageInputs, vision, memories };
+  // A Word document may place the chat's pictures ([[Image N]]): the model gets the same numbered list the chat shows.
+  const documentPictures = ro.exportAs === 'docx' && run.conversation_id ? (await buildImageRegistry(tx, run.conversation_id)).list.map(describeImage) : [];
+  return { ro, tool, task, job, client, instruction, preset, attachments, history, workspace, target, logo, imageInputs, vision, memories, documentPictures };
 }
 
 // ── Phase 2: model calls ───────────────────────────────────────────────────────
@@ -156,7 +159,7 @@ async function runAnswer(ctx, model) {
   const pictures = await fetchImageInputs(ctx.vision);
   const docs = files.pdfs;
   const labels = pictures.map((p) => p.label || p.name);
-  const { instructions, input } = buildAnswerRequest({ client, job, task, workspace, prompt: ro.prompt, history, references, imageLabels: labels, memories: ctx.memories, files, asDocument: ro.exportAs === 'docx' });
+  const { instructions, input } = buildAnswerRequest({ client, job, task, workspace, prompt: ro.prompt, history, references, imageLabels: labels, memories: ctx.memories, files, asDocument: ro.exportAs === 'docx', documentPictures: ctx.documentPictures });
   const content = [{ type: 'input_text', text: input }];
   for (const p of pictures) {
     const jpg = await sharp(p.buffer).rotate().resize({ width: 1536, height: 1536, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();

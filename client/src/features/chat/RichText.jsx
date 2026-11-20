@@ -20,11 +20,33 @@ function inline(text, keyBase) {
 
 const HEADING_SIZE = { 1: 'text-[1.3em]', 2: 'text-[1.17em]', 3: 'text-[1.06em]' };
 
-export function RichText({ text, className }) {
+/** Chat pictures a document places ([[Image 2]]), side by side, as in the Word file. */
+function Pictures({ labels, images }) {
+  return (
+    <div className="my-4 flex flex-wrap items-start justify-center gap-3">
+      {labels.map((label) => {
+        const e = images?.list?.find((x) => x.label === label);
+        return e?.src ? (
+          <figure key={label} className="m-0 max-w-[min(100%,340px)]">
+            <img src={e.src} alt={e.name || label} className="max-h-[300px] w-auto max-w-full rounded-xl border border-line object-contain" loading="lazy" />
+            <figcaption className="mt-1 text-center text-[13px] text-muted">{label}</figcaption>
+          </figure>
+        ) : (
+          <span key={label} className="rounded-lg bg-canvas px-3 py-2 text-[14px] text-muted">
+            {label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+export function RichText({ text, className, images }) {
   return (
     <div className={className}>
       {parseBlocks(text).map((b, n) => {
         const k = `b${n}`;
+        if (b.type === 'images') return <Pictures key={k} labels={b.labels} images={images} />;
         if (b.type === 'code') {
           return (
             <pre key={k} className="my-3 overflow-x-auto rounded-xl bg-canvas p-4 font-mono text-[14px] leading-6 text-ink">

@@ -35,7 +35,9 @@ import { safeError } from './execution.service.js';
 
 const MAX_ROUTER_IMAGES = 6;
 const NO_TEXT_PROMPT = 'The user sent files without a message and the chat does not say what to do with them. Describe them briefly, then ask what they would like done.';
-const DOCUMENT_WORDS = /\b(document|doc|docx|file|form|policy|contract|agreement|spreadsheet|sheet|excel|report|presentation|slides?|pdf|attachment|attached|letter|proposal|application)\b/i;
+/** Words that ask for the result as a file (Word / PDF / attachment / download / print). */
+const DOCUMENT_REQUEST = /\b(word|docx?|document|pdf|attachments?|download(?:able)?|print(?:able)?)\b/i;
+const DOCUMENT_WORDS =/\b(document|doc|docx|file|form|policy|contract|agreement|spreadsheet|sheet|excel|report|presentation|slides?|pdf|attachment|attached|letter|proposal|application)\b/i;
 
 async function loadContext(user, body) {
   return getDatabase().withUser(user.id, async (tx) => {
@@ -171,6 +173,14 @@ export async function handleAssistantMessage(user, body, { idempotencyKey } = {}
   timing.router = Date.now() - timing.start - timing.context;
 
   const byNumber = (n) => registry.list.find((e) => e.number === n) || null;
+  // A Word file only when one was asked for: in this message or the last few, or this chat already delivers one.
+  // ("I need to put a quote together" with pictures is a chat reply; "as an attachment / Word / PDF" is a document.)
+  if (route.deliverAs === 'docx' && prompt) {
+    const recent = registry.messages.filter((m) => m.role === 'user').slice(-3).map((m) => m.content || '');
+    const asked = [prompt, ...recent].some((t) => DOCUMENT_REQUEST.test(t));
+    const delivered = registry.messages.some((m) => m.role === 'assistant' && m.metadata?.exportAs === 'docx');
+    if (!asked && !delivered) route.deliverAs = 'chat';
+  }
   // A Word document is always produced as a complete answer, even if the router labelled it otherwise.
   if (route.deliverAs === 'docx' && ['write', 'unsupported', 'clarify'].includes(route.action) && (prompt || ctx.files.length || registry.list.length)) route.action = 'answer';
   const intent = { action: route.action, summary: route.summary, ...(route.deliverAs === 'docx' ? { deliverAs: 'docx' } : {}) };
@@ -233,7 +243,9 @@ export async function handleAssistantMessage(user, body, { idempotencyKey } = {}
         return reply(route.limitation || 'Sorry — that is not something I can do here.', 'unsupported');
 
       case 'answer': {
-        const look = [...new Set([...route.lookAtImages.map(byNumber), ...registry.list.filter((e) => e.pending), ...explicit].filter(Boolean))].slice(0, 6);
+        // A Word document can place the chat's pictures: let the model see the latest ones so it puts each where it belongs.
+        const forDocument = route.deliverAs === 'docx' ? registry.list.slice(-4) : [];
+        const look = [...new Set([...route.lookAtImages.map(byNumber), ...registry.list.filter((e) => e.pending), ...explicit, ...forDocument].filter(Boolean))].slice(0, 6);
         return startGeneration(
           user,
           'writing',
