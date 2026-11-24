@@ -41,11 +41,31 @@ function Pictures({ labels, images }) {
   );
 }
 
+/** A letterhead as it will print: name large on the left, the logo small on the right, a rule underneath. */
+function Letterhead({ labels, lines, images }) {
+  const logo = labels.map((l) => images?.list?.find((x) => x.label === l)).find((e) => e?.src);
+  const [name, ...rest] = lines;
+  return (
+    <div className="mb-5 flex items-center justify-between gap-4 border-b-2 border-[#1f3b73] pb-3">
+      <div className="min-w-0">
+        {name && <p className="font-serif text-[1.35em] font-bold uppercase leading-tight tracking-wide text-[#1f3b73]">{name}</p>}
+        {rest.map((l, j) => (
+          <p key={j} className="text-[0.85em] leading-snug text-muted">
+            {l}
+          </p>
+        ))}
+      </div>
+      {logo ? <img src={logo.src} alt={logo.name || 'Logo'} className="h-20 w-20 shrink-0 rounded object-contain" loading="lazy" /> : labels.length ? <span className="shrink-0 rounded-lg bg-canvas px-3 py-2 text-[13px] text-muted">{labels[0]}</span> : null}
+    </div>
+  );
+}
+
 export function RichText({ text, className, images }) {
   return (
     <div className={className}>
       {parseBlocks(text).map((b, n) => {
         const k = `b${n}`;
+        if (b.type === 'letterhead') return <Letterhead key={k} labels={b.labels} lines={b.lines} images={images} />;
         if (b.type === 'images') return <Pictures key={k} labels={b.labels} images={images} />;
         if (b.type === 'code') {
           return (

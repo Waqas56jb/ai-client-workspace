@@ -102,7 +102,8 @@ async function loadRunContext(tx, run) {
   const vision = await loadImageInputs(tx, ro.vision || [], task);
   const memories = tool === 'image' ? [] : await clientMemories(tx, client.id);
   // A Word document may place the chat's pictures ([[Image N]]): the model gets the same numbered list the chat shows.
-  const documentPictures = ro.exportAs === 'docx' && run.conversation_id ? (await buildImageRegistry(tx, run.conversation_id)).list.map(describeImage) : [];
+  // Every chat answer may show them too (a letterhead preview, a mock-up), so the list is given whenever this is an answer.
+  const documentPictures = ro.mode === 'answer' && run.conversation_id ? (await buildImageRegistry(tx, run.conversation_id)).list.map(describeImage) : [];
   return { ro, tool, task, job, client, instruction, preset, attachments, history, workspace, target, logo, imageInputs, vision, memories, documentPictures };
 }
 

@@ -1,4 +1,4 @@
-import { AlignmentType, BorderStyle, Document, HeadingLevel, ImageRun, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from 'docx';
+import { AlignmentType, BorderStyle, Document, Header, HeadingLevel, ImageRun, Packer, Paragraph, Table, TableCell, TableRow, TextRun, VerticalAlign, WidthType } from 'docx';
 import sharp from 'sharp';
 
 /**
@@ -9,22 +9,77 @@ import sharp from 'sharp';
  *
  * Pictures: a line made only of markers such as [[Image 2]] (the chat's numbering)
  * becomes the real picture(s), side by side when there are several on the line.
+ *
+ * Letterhead: a block
+ *   :::letterhead [[Image 1]]
+ *   Organisation name
+ *   Address line …
+ *   :::
+ * becomes the page header (name large on the left, the logo small on the right,
+ * a rule underneath) and repeats on every page.
  */
 
 const FONT = 'Calibri';
+const LETTERHEAD_COLOUR = '1F3B73';
 
 /** A line that only places pictures: "[[Image 1]]" or "[[Image 1]] [[Image 2]]". */
 export const IMAGE_LINE = /^\s*(?:\[\[\s*Image\s+\d{1,3}\s*\]\]\s*)+$/i;
+const LETTERHEAD_OPEN = /^\s*:::\s*letterhead\b(.*)$/i;
+const BLOCK_CLOSE = /^\s*:::\s*$/;
+const HTML_BREAK = /^\s*(<br\s*\/?>\s*)+$/i;
 export const imageLabelsIn = (line) => [...String(line).matchAll(/\[\[\s*Image\s+(\d{1,3})\s*\]\]/gi)].map((m) => `Image ${Number(m[1])}`);
-/** Every picture label a text places, in order, without repeats. */
+/** Every picture label a text places (picture lines and the letterhead logo), in order, without repeats. */
 export const placedImageLabels = (text) => [
   ...new Set(
     String(text || '')
       .split(/\r?\n/)
-      .filter((l) => IMAGE_LINE.test(l))
+      .filter((l) => IMAGE_LINE.test(l) || LETTERHEAD_OPEN.test(l))
       .flatMap(imageLabelsIn),
   ),
 ];
+
+/**
+ * Splits off the letterhead block (if any).
+ * @returns {{ letterhead: { labels: string[], lines: string[] } | null, body: string }}
+ */
+export function splitLetterhead(text) {
+  const lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
+  const start = lines.findIndex((l) => LETTERHEAD_OPEN.test(l));
+  if (start < 0) return { letterhead: null, body: lines.join('\n') };
+  let end = lines.findIndex((l, i) => i > start && BLOCK_CLOSE.test(l));
+  if (end < 0) end = Math.min(lines.length, start + 6); // unclosed: take the next few lines
+  const inner = lines.slice(start + 1, end);
+  const labels = [...imageLabelsIn(lines[start]), ...inner.filter((l) => IMAGE_LINE.test(l)).flatMap(imageLabelsIn)];
+  const textLines = inner.filter((l) => l.trim() && !IMAGE_LINE.test(l)).map((l) => l.replace(/\*\*|__/g, '').replace(/^#+\s*/, '').trim());
+  return { letterhead: { labels, lines: textLines }, body: [...lines.slice(0, start), ...lines.slice(end + 1)].join('\n').replace(/^\s*\n/, '') };
+}
+
+const NO_BORDER = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+
+function letterheadBlocks({ labels, lines }, images) {
+  const [name = '', ...rest] = lines;
+  const logo = labels.map((l) => images.get(l)).find(Boolean);
+  const left = [
+    new Paragraph({ spacing: { after: 60 }, children: [new TextRun({ text: name, bold: true, size: 36, color: LETTERHEAD_COLOUR, font: FONT })] }),
+    ...rest.map((l) => new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: l, size: 19, color: '404040', font: FONT })] })),
+  ];
+  const cells = [new TableCell({ verticalAlign: VerticalAlign.CENTER, borders: { top: NO_BORDER, bottom: NO_BORDER, left: NO_BORDER, right: NO_BORDER }, width: { size: logo ? 75 : 100, type: WidthType.PERCENTAGE }, children: left })];
+  if (logo) {
+    const scale = Math.min(1, 96 / logo.width, 96 / logo.height);
+    cells.push(
+      new TableCell({
+        verticalAlign: VerticalAlign.CENTER,
+        borders: { top: NO_BORDER, bottom: NO_BORDER, left: NO_BORDER, right: NO_BORDER },
+        width: { size: 25, type: WidthType.PERCENTAGE },
+        children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new ImageRun({ type: logo.type, data: logo.data, transformation: { width: Math.round(logo.width * scale), height: Math.round(logo.height * scale) } })] })],
+      }),
+    );
+  }
+  return [
+    new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, borders: { top: NO_BORDER, bottom: NO_BORDER, left: NO_BORDER, right: NO_BORDER, insideHorizontal: NO_BORDER, insideVertical: NO_BORDER }, rows: [new TableRow({ children: cells })] }),
+    new Paragraph({ spacing: { after: 240 }, border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: LETTERHEAD_COLOUR, space: 4 } }, children: [] }),
+  ];
+}
 
 // Usable width of an A4/Letter page with default margins is ~6.3in ≈ 600px at 96 dpi.
 const PAGE_PX = 600;
@@ -151,7 +206,7 @@ export function markdownToDocxBlocks(markdown, images = new Map()) {
       blocks.push(new Paragraph({ numbering: { reference: 'numbers', level: 0 }, children: runs(line.replace(/^\s*\d+[.)]\s+/, '')) }));
     } else if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
       blocks.push(new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'BFBFBF', space: 1 } }, children: [] }));
-    } else if (!line.trim()) {
+    } else if (!line.trim() || HTML_BREAK.test(line)) {
       blocks.push(new Paragraph({ children: [] }));
     } else {
       blocks.push(new Paragraph({ children: runs(line) }));
@@ -165,7 +220,13 @@ export function markdownToDocxBlocks(markdown, images = new Map()) {
  * @param {{ title?: string, text: string, images?: Map<string, object> }} p
  * @returns {Promise<Buffer>} the .docx bytes
  */
-export async function buildDocx({ title, text, images }) {
+export async function buildDocx({ title, text, images = new Map() }) {
+  const { letterhead, body } = splitLetterhead(text);
+  const section = { children: markdownToDocxBlocks(body, images) };
+  if (letterhead) {
+    section.headers = { default: new Header({ children: letterheadBlocks(letterhead, images) }) };
+    section.properties = { page: { margin: { top: 1900, header: 560 } } }; // room for the letterhead above the letter
+  }
   const doc = new Document({
     creator: 'StudioFlow AI',
     title: title || 'Document',
@@ -173,7 +234,7 @@ export async function buildDocx({ title, text, images }) {
     numbering: {
       config: [{ reference: 'numbers', levels: [{ level: 0, format: 'decimal', text: '%1.', alignment: AlignmentType.START, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }] }],
     },
-    sections: [{ children: markdownToDocxBlocks(text, images) }],
+    sections: [section],
   });
   return Packer.toBuffer(doc);
 }

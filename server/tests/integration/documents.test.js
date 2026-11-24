@@ -294,4 +294,35 @@ describe('Word documents (.docx)', () => {
     const other = await request(app).get(`/api/v1/exports/docx?messageId=${done.assistantMessage.id}`).set(authHeader(USERS.outsider));
     expect([401, 403, 404]).toContain(other.status);
   });
+
+  it('a letter on the club letterhead: the logo goes small into the page header with the name and address (client video: huge logo, "[logo centred at top]")', async () => {
+    const task = (await request(app).post('/api/v1/assistant/session').set(A).send({ clientId: ids.ev })).body.data.taskId;
+    const logo = (await upload(await sharp({ create: { width: 600, height: 600, channels: 3, background: { r: 30, g: 60, b: 160 } } }).png().toBuffer(), 'club-logo.png', 'image/png', task)).body.data.id;
+    fake.route = () => ({ ...blank, action: 'answer' });
+    fake.text = () => [':::letterhead [[Image 1]]', 'Melbourne Open Water Swimming Club', 'PO Box 356, Williamstown VIC 3016', ':::', '', '24 November 2026', '', '**RE: Coaching endorsement — Jason Bryce**', '', 'Jason has coached for our club.', '<br>', 'Yours sincerely,'].join('\n');
+    const preview = await poll((await say({ prompt: 'Show me how the letterhead looks with our logo.', attachmentIds: [logo] }, task)).body.data.generationId);
+    // Plain chat answers get the picture list too, so a preview shows the real logo instead of a placeholder.
+    expect(calls.text.at(-1).instructions).toMatch(/:::letterhead \[\[Image 1\]\]/);
+    expect(JSON.stringify(calls.text.at(-1).input)).toContain('Image 1 — photo the user added: “club-logo.png”');
+
+    fake.route = () => ({ ...blank, action: 'answer', deliver_as: 'docx' });
+    const done = await poll((await say({ conversationId: preview.conversation.id, prompt: 'Now put it in a Word document.' }, task)).body.data.generationId);
+    fake.text = null;
+    const file = await request(app).get(`/api/v1/exports/docx?messageId=${done.assistantMessage.id}`).set(A).buffer(true).parse((r, cb) => {
+      const chunks = [];
+      r.on('data', (c) => chunks.push(c));
+      r.on('end', () => cb(null, Buffer.concat(chunks)));
+    });
+    expect(file.status).toBe(200);
+    expect(file.headers['content-disposition']).toContain('Coaching endorsement');
+    const zip = await JSZip.loadAsync(file.body);
+    const header = await zip.file('word/header1.xml').async('string');
+    expect(header).toContain('Melbourne Open Water Swimming Club');
+    expect(header).toContain('PO Box 356, Williamstown VIC 3016');
+    expect(header).toMatch(/<pic:pic\b/); // the logo sits in the header…
+    expect(header).toMatch(/cx="914400"/); // …at 96 px (1 inch), not page width
+    const body = await zip.file('word/document.xml').async('string');
+    expect(body).not.toMatch(/letterhead|:::|&lt;br|<pic:pic\b/);
+    expect(body).toContain('RE: Coaching endorsement — Jason Bryce');
+  });
 });

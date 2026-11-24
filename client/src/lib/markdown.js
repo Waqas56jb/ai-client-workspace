@@ -13,6 +13,9 @@ const TABLE_RULE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 const RULE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
 /** A line that only places chat pictures in a document: "[[Image 1]]" or "[[Image 1]] [[Image 2]]". */
 const IMAGE_LINE = /^\s*(?:\[\[\s*Image\s+\d{1,3}\s*\]\]\s*)+$/i;
+const LETTERHEAD_OPEN = /^\s*:::\s*letterhead\b(.*)$/i;
+const BLOCK_CLOSE = /^\s*:::\s*$/;
+const HTML_BREAK = /^\s*(<br\s*\/?>\s*)+$/i;
 const imageLabels = (line) => [...line.matchAll(/\[\[\s*Image\s+(\d{1,3})\s*\]\]/gi)].map((m) => `Image ${Number(m[1])}`);
 
 const cells = (line) =>
@@ -27,10 +30,23 @@ export function parseBlocks(text) {
   const lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
   const out = [];
   let i = 0;
-  const isStart = (l, next) => /^```/.test(l) || IMAGE_LINE.test(l) || BULLET.test(l) || NUMBER.test(l) || HEADING.test(l) || RULE.test(l) || (TABLE_ROW.test(l) && TABLE_RULE.test(next || ''));
+  const isStart = (l, next) => /^```/.test(l) || IMAGE_LINE.test(l) || LETTERHEAD_OPEN.test(l) || HTML_BREAK.test(l) || BULLET.test(l) || NUMBER.test(l) || HEADING.test(l) || RULE.test(l) || (TABLE_ROW.test(l) && TABLE_RULE.test(next || ''));
   while (i < lines.length) {
     const line = lines[i];
-    if (IMAGE_LINE.test(line)) {
+    if (LETTERHEAD_OPEN.test(line)) {
+      // :::letterhead [[Image 1]] / name / address lines / ::: — laid out like a printed letterhead
+      let end = lines.findIndex((l, n) => n > i && BLOCK_CLOSE.test(l));
+      if (end < 0) end = Math.min(lines.length, i + 6);
+      const inner = lines.slice(i + 1, end);
+      out.push({
+        type: 'letterhead',
+        labels: [...imageLabels(line), ...inner.filter((l) => IMAGE_LINE.test(l)).flatMap(imageLabels)],
+        lines: inner.filter((l) => l.trim() && !IMAGE_LINE.test(l)).map((l) => l.replace(/\*\*|__/g, '').replace(/^#+\s*/, '').trim()),
+      });
+      i = end + 1;
+    } else if (HTML_BREAK.test(line)) {
+      i += 1;
+    } else if (IMAGE_LINE.test(line)) {
       out.push({ type: 'images', labels: imageLabels(line) });
       i += 1;
     } else if (/^```/.test(line)) {
@@ -112,6 +128,7 @@ export function markdownToHtml(text) {
       if (b.type === 'code') return `<pre style="font-family:Consolas,monospace;font-size:10pt;">${esc(b.text)}</pre>`;
       if (b.type === 'hr') return '<hr>';
       if (b.type === 'images') return `<p style="margin:0 0 12px;color:#6b7280;"><em>[${esc(b.labels.join(', '))}]</em></p>`;
+      if (b.type === 'letterhead') return `<p style="margin:0 0 16px;padding-bottom:8px;border-bottom:2px solid #1f3b73;"><strong style="font-size:14pt;color:#1f3b73;">${esc(b.lines[0] || '')}</strong>${b.lines.slice(1).map((l) => `<br>${esc(l)}`).join('')}</p>`;
       return `<table style="border-collapse:collapse;margin:0 0 12px;">${b.rows
         .map((r, i) => `<tr>${r.map((c) => `<${i ? 'td' : 'th'} style="border:1px solid #d1d5db;padding:4px 8px;text-align:left;">${inlineHtml(c)}</${i ? 'td' : 'th'}>`).join('')}</tr>`)
         .join('')}</table>`;
@@ -131,6 +148,7 @@ export function markdownToPlain(text) {
       if (b.type === 'code') return b.text;
       if (b.type === 'hr') return '';
       if (b.type === 'images') return `[${b.labels.join(', ')}]`;
+      if (b.type === 'letterhead') return b.lines.join('\n');
       return b.rows.map((r) => r.map(inlinePlain).join('\t')).join('\n');
     })
     .join('\n\n')

@@ -7,7 +7,7 @@ export function markdownToPlain(text = '') {
   return String(text)
     .replace(/\r\n/g, '\n')
     .split('\n')
-    .filter((l) => !/^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l) && !/^\s*```/.test(l))
+    .filter((l) => !/^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l) && !/^\s*```/.test(l) && !/^\s*:::/.test(l) && !/^\s*(<br\s*\/?>\s*)+$/i.test(l))
     .map((l) =>
       l
         .replace(/\[\[\s*(Image\s+\d{1,3})\s*\]\]/gi, '[$1]')

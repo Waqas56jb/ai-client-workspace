@@ -298,7 +298,11 @@ export function SendingMessage({ text, attachmentCount }) {
   );
 }
 
-const docTitle = (text) => String(text || '').match(/^#{1,3}\s+(.+)$/m)?.[1]?.replace(/\*\*/g, '').trim();
+const docTitle = (text) => {
+  const t = String(text || '');
+  const letterhead = t.match(/^\s*:::\s*letterhead\b.*\n\s*(.+)$/im)?.[1];
+  return (t.match(/^#{1,3}\s+(.+)$/m)?.[1] || t.match(/^\s*\**\s*RE:\s*(.+?)\s*\**\s*$/im)?.[1] || (letterhead && `${letterhead} letter`))?.replace(/\*\*/g, '').trim();
+};
 
 /** A Word download of an answer; while it is being built the button says so. */
 function WordButton({ messageId, title, prominent = false }) {

@@ -5,7 +5,7 @@ import { validate } from '../middleware/validate.js';
 import { handler } from '../utils/response.js';
 import { badRequest, notFound } from '../utils/errors.js';
 import { getMessageRow } from '../repositories/messages.repository.js';
-import { buildDocx, docxFileName, docxPicture, placedImageLabels } from '../services/exportDocx.service.js';
+import { buildDocx, docxFileName, docxPicture, placedImageLabels, splitLetterhead } from '../services/exportDocx.service.js';
 import { buildImageRegistry } from '../services/ai/imageRegistry.js';
 import { getObject } from '../services/storage.service.js';
 import { logger } from '../utils/logger.js';
@@ -23,6 +23,8 @@ const query = z
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const firstHeading = (text) => String(text || '').match(/^#{1,3}\s+(.+)$/m)?.[1]?.replace(/\*\*/g, '').trim();
+/** A letter's "RE: …" line names the file when there is no heading. */
+const subjectLine = (text) => String(text || '').match(/^\s*\**\s*RE:\s*(.+?)\s*\**\s*$/im)?.[1]?.replace(/\*\*/g, '').trim();
 
 router.get(
   '/exports/docx',
@@ -38,7 +40,8 @@ router.get(
         // Pictures the answer places ([[Image 2]]) — looked up in this chat only, with the user's own access.
         const labels = placedImageLabels(row.content);
         const pictures = labels.length ? (await buildImageRegistry(tx, row.conversation_id)).list.filter((e) => labels.includes(e.label)) : [];
-        return { title: firstHeading(row.content) || rows[0]?.title || 'StudioFlow AI answer', text: row.content, pictures };
+        const letterheadName = splitLetterhead(row.content).letterhead?.lines[0];
+        return { title: firstHeading(row.content) || subjectLine(row.content) || (letterheadName && `${letterheadName} letter`) || rows[0]?.title || 'StudioFlow AI answer', text: row.content, pictures };
       }
       const { rows } = await tx.query(
         `select o.title, v.content, v.sections from public.ai_workspace_output_versions v

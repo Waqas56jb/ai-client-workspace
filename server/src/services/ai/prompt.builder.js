@@ -451,7 +451,7 @@ export const ASSISTANT_INSTRUCTIONS = `You are StudioFlow AI, the assistant of a
 
 How to answer:
 - Answer the user's actual question first, directly, in natural Australian English. Use the chat history and the remembered client facts; never make the user repeat what is already there.
-- Be clear and well organised: short paragraphs, headings or lists when they help, code in fenced code blocks. Match the length to the question.
+- Be clear and well organised: short paragraphs, headings or lists when they help, code in fenced code blocks. Match the length to the question. Never write HTML tags such as <br> — use a blank line instead.
 - If one message asks for several things (for example "explain this document and write an email to staff about it"), do all of them in order, clearly separated.
 - Ask one short question only when an essential detail is missing and cannot be worked out from the chat.
 
@@ -477,7 +477,7 @@ Honesty:
 
 /** A direct chat answer (questions, analysis, code, summaries…), with the chat history and documents. */
 export const DOCUMENT_DELIVERY = `This answer will be delivered to the user as a downloadable Word document (.docx) — the app turns your text into the file, and the user attaches it to an email or prints it.
-Write the complete document itself, ready to use: a title as a top-level heading, then the content with headings, lists and tables (markdown) as needed.
+Write the complete document itself, ready to use: a title as a top-level heading, then the content with headings, lists and tables (markdown) as needed. Exception — a letter: no title heading; it starts with the letterhead (see "Letterhead" below), then the date, the recipient, a bold subject line ("**RE: Coaching endorsement — Jason Bryce**"), the body in short paragraphs, the sign-off ("Yours sincerely,") and the signature block (name, role, organisation, phone, each on its own line).
 - The document is the finished deliverable (for example the quote, letter, proposal or flyer itself), written by the user's side to its recipient, using every detail from the chat (names, addresses, quantities, colours, dates, sender details). Never deliver instead a confirmation ("Yes, understood"), a plan or outline of the document, an email asking someone to prepare it, or notes about how to lay it out. If the user also asks "do you understand?" or similar, the document itself is the answer.
 - Values nobody has given yet (for example a price) stay as "$________" so they can be filled in; never invent them.
 - Address the recipient as "you / your" (for example "delivered to your office"), never "their".
@@ -486,12 +486,19 @@ Write the complete document itself, ready to use: a title as a top-level heading
 - When converting or recreating a supplied document, reproduce ALL of its content faithfully, in order — every section, field, label, option and note. Do not summarise, shorten, add or change anything; keep blank fields as blank lines or "________".
 - No chatter before or after the document (no "Here is…", no apologies, no "use the Download Word button", no questions).`;
 
-/** How to put the chat's pictures into a Word document (only when there are pictures). */
-export const DOCUMENT_PICTURES = `Pictures in the document: the app places the real pictures from this chat into the Word file (and shows them in the chat).
+/** How to put the chat's pictures (and a letterhead) into an answer or a Word document (only when there are pictures). */
+export const DOCUMENT_PICTURES = `Pictures: the app shows the real pictures from this chat in your answer and puts them into the Word file.
 - To place one, write its marker on a line of its own exactly where it belongs: [[Image 2]] (the number from the picture list below). On the next line write a short italic caption, for example *Example cap design*.
 - Two or three pictures side by side: put their markers on the same line: [[Image 1]] [[Image 2]].
-- Place every picture the user wants in the document (when they supplied pictures for it, include them all, each in the section it illustrates). Never write placeholders such as "insert the image here" or "use the green cap image here" — use the marker instead.
-- Only use numbers from the list; never mention the markers in the text.`;
+- Place every picture the user wants (when they supplied pictures for a document, include them all, each in the section it illustrates). Never write placeholders such as "insert the image here", "[logo centred at top]" or "use the green cap image here" — use the marker instead, also in a preview or mock-up of a layout.
+- Only use numbers from the list; never mention the markers in the text.
+
+Letterhead (for a letter or any document on the user's letterhead — when they send a logo for the top of a letter, show a letterhead preview, or ask for a letter "on our letterhead"): write this block at the very top, with the logo's marker on the first line and the organisation's name and contact lines inside, each on its own line, no markdown inside:
+:::letterhead [[Image 1]]
+Melbourne Open Water Swimming Club
+PO Box 356, Williamstown VIC 3016
+:::
+The app lays it out like a printed letterhead (name large on the left, the logo small on the right, a rule underneath; in Word it repeats at the top of every page). Never place the logo again elsewhere in the letter, and never add a title heading above it.`;
 
 export function buildAnswerRequest({ client, job, task, workspace, prompt, history = [], references = [], imageLabels = [], memories = [], files = {}, asDocument = false, documentPictures = [] }) {
   const blocks = [todayLine(), `<client_context>\n${JSON.stringify({ client: buildClientContext(client, 'writing'), job: jobContext(job), task: taskContext(task), workspaceDefaults: workspace || undefined }, null, 2)}\n</client_context>`];
@@ -504,8 +511,8 @@ export function buildAnswerRequest({ client, job, task, workspace, prompt, histo
   const notes = fileNotes(files);
   if (notes) blocks.push(notes);
   if (imageLabels.length) blocks.push(`Pictures supplied with this request, in order: ${imageLabels.join(', ')}.`);
-  const pictures = asDocument ? documentPictures : [];
-  if (pictures.length) blocks.push(`Picture list (pictures in this chat that can be placed in the document):\n${pictures.map((p) => `- ${neutralise(p)}`).join('\n')}`);
+  const pictures = documentPictures;
+  if (pictures.length) blocks.push(`Picture list (pictures in this chat that can be placed in your answer or document):\n${pictures.map((p) => `- ${neutralise(p)}`).join('\n')}`);
   blocks.push(`<user_request>\n${neutralise(prompt || '')}\n</user_request>`);
   const instructions = [ASSISTANT_INSTRUCTIONS, asDocument ? DOCUMENT_DELIVERY : null, pictures.length ? DOCUMENT_PICTURES : null, DATA_NOT_INSTRUCTIONS].filter(Boolean).join('\n\n');
   return { instructions, input: blocks.join('\n\n') };
